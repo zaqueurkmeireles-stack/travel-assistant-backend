@@ -12,7 +12,7 @@ from pathlib import Path
 # ============================================================
 
 API_KEYS = {
-    "OPENAI_API_KEY": "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",
+      "OPENAI_API_KEY": "SUA_CHAVE_OPENAI_AQUI",
     "GOOGLE_GEMINI_API_KEY": "AIzaSyAzfAKYG01KHOKyFt8r9INbmgzfjcf0ayM",
     "GOOGLE_MAPS_API_KEY": "AIzaSyAl-uUlCM-JDd398Qsa_tyhX-dVoOwB75o",
     "OPENWEATHER_API_KEY": "6d2f79674c36b116946da1f15b85fc42",
