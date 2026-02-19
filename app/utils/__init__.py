@@ -1,0 +1,1 @@
+"""Módulo gerado automaticamente"""

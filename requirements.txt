@@ -1,0 +1,53 @@
+# ============================================================
+# TRAVELCOMPANION AI - MVP COMPLETO - DEPENDÊNCIAS
+# ============================================================
+
+# Framework Web
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-multipart==0.0.20
+
+# LangChain e LangGraph
+langchain==0.3.13
+langchain-openai==0.2.14
+langchain-google-genai==2.0.8
+langgraph==0.2.59
+langchain-community==0.3.13
+
+# OpenAI
+openai==1.59.5
+
+# RAG e Embeddings
+chromadb==0.5.23
+sentence-transformers==3.3.1
+
+# Processamento de Documentos
+pypdf2==3.0.1
+python-docx==1.1.2
+pillow==11.0.0
+pytesseract==0.3.13
+
+# Agendamento de Tarefas
+apscheduler==3.10.4
+
+# Parsing de Datas
+dateparser==1.2.0
+
+# Persistência
+sqlalchemy==2.0.36
+
+# Requests
+requests==2.32.5
+httpx==0.28.1
+
+# Ambiente
+python-dotenv==1.0.1
+
+# Logging
+loguru==0.7.3
+
+# Utilidades
+python-dateutil==2.9.0.post0
+typing-extensions==4.12.2
