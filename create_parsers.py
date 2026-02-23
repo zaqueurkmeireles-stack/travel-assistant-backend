@@ -9,7 +9,7 @@ from pathlib import Path
 FILES = {}
 
 # ============================================================
-# BASE PARSER
+# BASE PARSER (AGORA COM OCR ATIVADO!)
 # ============================================================
 FILES["app/parsers/base_parser.py"] = '''"""
 Base Parser - Classe abstrata para todos os parsers
@@ -20,13 +20,15 @@ from typing import Dict, Any, Optional
 from loguru import logger
 import PyPDF2
 import io
+import pytesseract
+from PIL import Image
 
 class BaseParser(ABC):
     """Classe base para todos os parsers de documentos"""
     
     def __init__(self, openai_svc=None):
         """Inicializa o parser com injeção de dependência opcional"""
-        self.supported_formats = []
+        self.supported_formats = ['pdf', 'png', 'jpg', 'jpeg']
         self.openai_svc = openai_svc
         
     @abstractmethod
@@ -34,21 +36,57 @@ class BaseParser(ABC):
         """Método abstrato que cada parser deve implementar"""
         pass
     
+    def extract_text(self, file_content: bytes, filename: str) -> str:
+        """Decide qual método usar baseado na extensão do arquivo"""
+        ext = filename.lower().split('.')[-1]
+        
+        if ext == 'pdf':
+            return self.extract_text_from_pdf(file_content)
+        elif ext in ['png', 'jpg', 'jpeg']:
+            return self.extract_text_from_image(file_content)
+        else:
+            logger.warning(f"Formato não suportado para extração: {ext}")
+            return ""
+
     def extract_text_from_pdf(self, file_content: bytes) -> str:
-        """Extrai texto de um PDF"""
+        """Extrai texto de um PDF (tenta texto nativo primeiro)"""
         try:
             pdf_file = io.BytesIO(file_content)
             pdf_reader = PyPDF2.PdfReader(pdf_file)
             
             text = ""
             for page in pdf_reader.pages:
-                text += page.extract_text() + "\\n"
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\\n"
             
+            # Se o PDF for só uma imagem escaneada, o texto nativo virá vazio
+            if len(text.strip()) < 20:
+                logger.info("PDF parece ser escaneado. Tentando OCR (em breve via conversão de página)...")
+                # Nota: Para OCR completo em PDF, precisaríamos do pdf2image. 
+                # Por enquanto, focamos em imagens diretas.
+                
             logger.debug(f"Texto extraído do PDF: {len(text)} caracteres")
             return text.strip()
             
         except Exception as e:
             logger.error(f"Erro ao extrair texto do PDF: {e}")
+            return ""
+
+    def extract_text_from_image(self, file_content: bytes) -> str:
+        """Extrai texto de uma imagem usando Tesseract OCR"""
+        try:
+            logger.info("🔍 Iniciando extração de texto via OCR (Tesseract)...")
+            image = Image.open(io.BytesIO(file_content))
+            
+            # Executa o OCR (assumindo que o Tesseract está instalado no sistema)
+            text = pytesseract.image_to_string(image, lang='por+eng')
+            
+            logger.debug(f"Texto extraído via OCR: {len(text)} caracteres")
+            return text.strip()
+            
+        except Exception as e:
+            logger.error(f"❌ Erro no OCR: {e}. Verifique se o Tesseract está instalado no SO.")
             return ""
     
     def is_supported(self, filename: str) -> bool:
@@ -60,17 +98,7 @@ class BaseParser(ABC):
         """Verifica se o texto extraído é válido para análise pela IA"""
         if not text or len(text.strip()) < 10:
             return False
-        
-        # Blindagem contra placeholders de OCR
-        invalid_phrases = [
-            "OCR pendente",
-            "Imagem de",
-            "pending OCR",
-            "Image of"
-        ]
-        
-        text_lower = text.lower()
-        return not any(phrase.lower() in text_lower for phrase in invalid_phrases)
+        return True
 '''
 
 # ============================================================
@@ -89,43 +117,30 @@ class FlightParser(BaseParser):
     """Parser especializado em passagens aéreas"""
     
     def __init__(self, openai_svc: OpenAIService = None):
-        """Inicializa o parser de voos com injeção de dependência"""
         super().__init__(openai_svc)
-        # Removido suporte falso a imagens por enquanto (OCR pendente)
-        self.supported_formats = ['pdf']
-        logger.info("✅ FlightParser inicializado")
+        logger.info("✅ FlightParser inicializado (Com suporte a OCR)")
     
     def parse(self, file_content: bytes, filename: str) -> Dict[str, Any]:
-        """Extrai informações de uma passagem aérea"""
         logger.info(f"📄 Parseando passagem aérea: {filename}")
         
-        if filename.lower().endswith('.pdf'):
-            text = self.extract_text_from_pdf(file_content)
-        else:
-            logger.warning(f"Formato {filename} requer OCR ou Vision API")
-            text = "Imagem de passagem (OCR pendente)"
+        text = self.extract_text(file_content, filename)
         
-        # Validação blindada herdada do BaseParser
         if not self.is_valid_text(text):
             return {
                 "success": False,
-                "error": "Texto insuficiente, formato inválido ou requer OCR (envie PDF).",
+                "error": "Não foi possível extrair texto legível da imagem ou PDF.",
                 "document_type": "flight_ticket",
                 "filename": filename
             }
         
         if not self.openai_svc:
-            return {
-                "success": False,
-                "error": "OpenAI Service não configurado",
-                "document_type": "flight_ticket"
-            }
+            return {"success": False, "error": "OpenAI Service não configurado"}
         
         result = self.openai_svc.analyze_document(text, "passagem aérea")
         result["document_type"] = "flight_ticket"
         result["filename"] = filename
         
-        logger.info(f"✅ Passagem parseada: {result.get('flight_number', 'N/A')}")
+        logger.info(f"✅ Passagem parseada com sucesso!")
         return result
 '''
 
@@ -145,41 +160,30 @@ class HotelParser(BaseParser):
     """Parser especializado em reservas de hotel"""
     
     def __init__(self, openai_svc: OpenAIService = None):
-        """Inicializa o parser de hotéis com injeção de dependência"""
         super().__init__(openai_svc)
-        self.supported_formats = ['pdf']
-        logger.info("✅ HotelParser inicializado")
+        logger.info("✅ HotelParser inicializado (Com suporte a OCR)")
     
     def parse(self, file_content: bytes, filename: str) -> Dict[str, Any]:
-        """Extrai informações de uma reserva de hotel"""
         logger.info(f"🏨 Parseando reserva de hotel: {filename}")
         
-        if filename.lower().endswith('.pdf'):
-            text = self.extract_text_from_pdf(file_content)
-        else:
-            logger.warning(f"Formato {filename} requer OCR ou Vision API")
-            text = "Imagem de reserva (OCR pendente)"
+        text = self.extract_text(file_content, filename)
         
         if not self.is_valid_text(text):
             return {
                 "success": False,
-                "error": "Texto insuficiente, formato inválido ou requer OCR (envie PDF).",
+                "error": "Não foi possível extrair texto legível da imagem ou PDF.",
                 "document_type": "hotel_reservation",
                 "filename": filename
             }
         
         if not self.openai_svc:
-            return {
-                "success": False,
-                "error": "OpenAI Service não configurado",
-                "document_type": "hotel_reservation"
-            }
+            return {"success": False, "error": "OpenAI Service não configurado"}
         
         result = self.openai_svc.analyze_document(text, "reserva de hotel")
         result["document_type"] = "hotel_reservation"
         result["filename"] = filename
         
-        logger.info(f"✅ Reserva parseada: {result.get('hotel_name', 'N/A')}")
+        logger.info(f"✅ Reserva parseada com sucesso!")
         return result
 '''
 
@@ -199,37 +203,24 @@ class DocumentParser(BaseParser):
     """Parser genérico para qualquer tipo de documento"""
     
     def __init__(self, openai_svc: OpenAIService = None):
-        """Inicializa o parser genérico com injeção de dependência"""
         super().__init__(openai_svc)
-        self.supported_formats = ['pdf', 'txt']
-        logger.info("✅ DocumentParser inicializado")
+        logger.info("✅ DocumentParser inicializado (Com suporte a OCR)")
     
     def parse(self, file_content: bytes, filename: str, document_type: str = "documento genérico") -> Dict[str, Any]:
-        """Extrai informações de um documento genérico"""
         logger.info(f"📄 Parseando documento: {filename} ({document_type})")
         
-        if filename.lower().endswith('.pdf'):
-            text = self.extract_text_from_pdf(file_content)
-        elif filename.lower().endswith('.txt'):
-            text = file_content.decode('utf-8', errors='ignore')
-        else:
-            logger.warning(f"Formato {filename} requer OCR ou Vision API")
-            text = "Imagem de documento (OCR pendente)"
+        text = self.extract_text(file_content, filename)
         
         if not self.is_valid_text(text):
             return {
                 "success": False,
-                "error": "Texto insuficiente, formato inválido ou requer OCR (envie PDF ou TXT).",
+                "error": "Não foi possível extrair texto legível do arquivo.",
                 "document_type": document_type,
                 "filename": filename
             }
         
         if not self.openai_svc:
-            return {
-                "success": False,
-                "error": "OpenAI Service não configurado",
-                "document_type": document_type
-            }
+            return {"success": False, "error": "OpenAI Service não configurado"}
         
         result = self.openai_svc.analyze_document(text, document_type)
         result["document_type"] = document_type
@@ -258,34 +249,25 @@ class ParserFactory:
     """Factory para selecionar o parser correto baseado no tipo de documento"""
     
     def __init__(self):
-        """Inicializa a factory com uma ÚNICA instância do OpenAI Service"""
-        # Otimização: Uma única instância compartilhada economiza memória
         self.openai_svc = OpenAIService()
-        
-        # Injeção de dependência: todos os parsers usam o mesmo service
         self.flight_parser = FlightParser(openai_svc=self.openai_svc)
         self.hotel_parser = HotelParser(openai_svc=self.openai_svc)
         self.document_parser = DocumentParser(openai_svc=self.openai_svc)
-        
-        logger.info("✅ ParserFactory inicializado (OpenAI Service compartilhado)")
+        logger.info("✅ ParserFactory inicializado")
     
     def auto_parse(self, file_content: bytes, filename: str, document_hint: str = None) -> Dict[str, Any]:
-        """Detecta automaticamente o tipo de documento e usa o parser adequado"""
         logger.info(f"🔍 Auto-detectando tipo de documento: {filename}")
         
         filename_lower = filename.lower()
         hint_lower = (document_hint or "").lower()
         
         if any(word in filename_lower or word in hint_lower for word in ['flight', 'ticket', 'boarding', 'voo', 'passagem']):
-            logger.info("✈️ Detectado: Passagem aérea")
             return self.flight_parser.parse(file_content, filename)
         
         elif any(word in filename_lower or word in hint_lower for word in ['hotel', 'reservation', 'booking', 'hospedagem', 'reserva']):
-            logger.info("🏨 Detectado: Reserva de hotel")
             return self.hotel_parser.parse(file_content, filename)
         
         else:
-            logger.info("📄 Usando parser genérico")
             return self.document_parser.parse(file_content, filename, document_hint or "documento de viagem")
 '''
 
@@ -313,7 +295,7 @@ def create_parsers():
     """Cria todos os arquivos de parsers"""
     
     print("=" * 70)
-    print("📄 CRIANDO PARSERS - EXTRAÇÃO DE DADOS DE DOCUMENTOS")
+    print("📄 CRIANDO PARSERS - COM SUPORTE A OCR (IMAGENS)")
     print("=" * 70)
     print()
     
@@ -326,15 +308,8 @@ def create_parsers():
     
     print()
     print("=" * 70)
-    print("✅ PARSERS CRIADOS COM SUCESSO E BLINDADOS!")
+    print("✅ PARSERS CRIADOS COM SUCESSO!")
     print("=" * 70)
-    print()
-    print("📋 Melhorias aplicadas:")
-    print("   ✅ Injeção de dependência (1 instância OpenAI)")
-    print("   ✅ Validação centralizada de texto is_valid_text()")
-    print("   ✅ Encoding de logs consertado (Fim do Mojibake)")
-    print("   ✅ Type Hinting restaurado para IDEs")
-    print()
 
 if __name__ == "__main__":
     create_parsers()

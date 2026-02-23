@@ -145,60 +145,8 @@ async def upload_document(
         )
 '''
 
-def update_main_py():
-    """Lê o main.py atual e injeta o router sem quebrar as configurações originais"""
-    main_path = Path("main.py")
-    
-    if not main_path.exists():
-        print("⚠️ main.py não encontrado! Execute setup_project.py primeiro.")
-        return False
-        
-    with open(main_path, "r", encoding="utf-8") as f:
-        content = f.read()
-        
-    # Verificar se já foi injetado
-    if "from app.api.routes import router as api_router" in content:
-        print("   ✅ As rotas já estão registradas no main.py!")
-        return True
-        
-    # Injetar o import no topo (depois do último import)
-    import_statement = "from app.api.routes import router as api_router\n"
-    
-    # Injetar o include_router logo após a criação do app
-    router_statement = "\n# API Routes (Injetado automaticamente)\napp.include_router(api_router, prefix=\"/api\", tags=[\"API\"])\n"
-    
-    # Lógica simples de injeção
-    lines = content.split('\n')
-    new_lines = []
-    app_created = False
-    
-    for line in lines:
-        new_lines.append(line)
-        
-        # Acha onde terminam os imports principais (ex: from app.config...)
-        if line.startswith("from app.config"):
-            new_lines.append(import_statement.strip())
-            
-        # Acha onde o app é instanciado
-        if line.startswith("app = FastAPI(") or (app_created and line.startswith(")")):
-            if line.startswith("app = FastAPI("):
-                if ")" in line:
-                    new_lines.append(router_statement.strip())
-                else:
-                    app_created = True
-            elif app_created and line.startswith(")"):
-                app_created = False
-                new_lines.append(router_statement.strip())
-
-    # Gravar o novo main.py
-    with open(main_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(new_lines))
-        
-    print("   ✅ main.py atualizado com sucesso (Rotas injetadas de forma segura)!")
-    return True
-
 def create_routes():
-    """Cria os arquivos de rotas e atualiza o main.py"""
+    """Cria os arquivos de rotas"""
     print("=" * 70)
     print("🌐 CRIANDO ROTAS DA API E CONECTANDO O AGENTE")
     print("=" * 70)
@@ -211,10 +159,6 @@ def create_routes():
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"   ✅ {filepath} criado!")
-    
-    print()
-    print("🔄 Atualizando main.py...")
-    update_main_py()
     
     print()
     print("=" * 70)

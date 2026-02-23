@@ -8,22 +8,6 @@ import os
 from pathlib import Path
 
 # ============================================================
-# SUAS KEYS REAIS (JÁ PREENCHIDAS AUTOMATICAMENTE)
-# ============================================================
-
-API_KEYS = {
-      "OPENAI_API_KEY": "SUA_CHAVE_OPENAI_AQUI",
-    "GOOGLE_GEMINI_API_KEY": "AIzaSyAzfAKYG01KHOKyFt8r9INbmgzfjcf0ayM",
-    "GOOGLE_MAPS_API_KEY": "AIzaSyAl-uUlCM-JDd398Qsa_tyhX-dVoOwB75o",
-    "OPENWEATHER_API_KEY": "6d2f79674c36b116946da1f15b85fc42",
-    "TAVILY_API_KEY": "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",
-    "AERODATABOX_API_KEY": "cb44b2d1acmsha7db96ec5484957p11b134jsn13348b425ba0",
-    "FOURSQUARE_API_KEY": "fsqhDT4oMj2BxiTg7wM04qEJUDSV3P90blU5lzN7bVN9JM=",
-    "ELEVENLABS_API_KEY": "sk_56d0072b7eaf744e3e912966a1a13b76afea02d59c074572",
-    "N8N_API_KEY": "429683C4C977415CAAFCCE10F7D57E11",
-}
-
-# ============================================================
 # ESTRUTURA DE PASTAS
 # ============================================================
 
@@ -109,150 +93,6 @@ typing-extensions==4.12.2
 """
 
 # ============================================================
-# .ENV (AUTOMÁTICO COM SUAS KEYS)
-# ============================================================
-FILES[".env"] = f"""# ============================================================
-# TRAVELCOMPANION AI - CONFIGURAÇÃO AUTOMÁTICA
-# ============================================================
-
-# INTELIGÊNCIA ARTIFICIAL
-OPENAI_API_KEY={API_KEYS['OPENAI_API_KEY']}
-GOOGLE_GEMINI_API_KEY={API_KEYS['GOOGLE_GEMINI_API_KEY']}
-ENABLE_DUAL_AI_CONSENSUS=True
-
-# WHATSAPP (Preencher quando configurar)
-WHATSAPP_TOKEN=
-WHATSAPP_PHONE_NUMBER_ID=
-WHATSAPP_VERIFY_TOKEN=meu-token-verificacao-123
-
-# GOOGLE MAPS
-GOOGLE_MAPS_API_KEY={API_KEYS['GOOGLE_MAPS_API_KEY']}
-
-# BUSCA
-TAVILY_API_KEY={API_KEYS['TAVILY_API_KEY']}
-
-# VOOS
-AERODATABOX_API_KEY={API_KEYS['AERODATABOX_API_KEY']}
-AERODATABOX_API_HOST=aerodatabox.p.rapidapi.com
-
-# CLIMA
-OPENWEATHER_API_KEY={API_KEYS['OPENWEATHER_API_KEY']}
-
-# LOCAIS
-FOURSQUARE_API_KEY={API_KEYS['FOURSQUARE_API_KEY']}
-
-# SÍNTESE DE VOZ
-ELEVENLABS_API_KEY={API_KEYS['ELEVENLABS_API_KEY']}
-
-# N8N
-N8N_API_KEY={API_KEYS['N8N_API_KEY']}
-N8N_WEBHOOK_URL=
-
-# REDDIT (Adicione quando precisar)
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
-REDDIT_USER_AGENT=travel_assistant:v1.0
-
-# ============================================================
-# ADICIONE NOVAS APIs AQUI (EXEMPLO)
-# ============================================================
-# NOVA_API_KEY=sua_key_aqui
-# OUTRA_API_KEY=outra_key_aqui
-
-# SEGURANÇA
-API_SECRET_KEY=travel-companion-secret-key-change-in-production
-
-# CONFIGURAÇÕES
-ENVIRONMENT=development
-PORT=8000
-DEBUG=True
-LOG_LEVEL=INFO
-CORS_ORIGINS=http://localhost:3000
-
-# BANCO DE DADOS
-CHROMA_DB_PATH=./data/chroma_db
-DOCUMENTS_PATH=./data/documents
-"""
-
-# ============================================================
-# MAIN.PY
-# ============================================================
-FILES["main.py"] = '''"""
-TravelCompanion AI - MVP Completo
-Servidor FastAPI principal com estrutura modular
-"""
-
-import uvicorn
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
-
-from app.config import settings, setup_directories
-
-# Configurar logging
-logger.add("logs/app.log", rotation="1 day", retention="7 days", level=settings.LOG_LEVEL)
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("🚀 Iniciando TravelCompanion AI...")
-    setup_directories()
-    logger.info(f"🌍 Ambiente: {settings.ENVIRONMENT}")
-    logger.info(f"🔧 Debug: {settings.DEBUG}")
-    logger.info(f"🔗 Porta: {settings.PORT}")
-    
-    yield
-    
-    logger.info("🛑 Encerrando TravelCompanion AI...")
-
-app = FastAPI(
-    title="TravelCompanion AI",
-    description="Assistente Inteligente de Viagens - MVP Completo",
-    version="1.0.0-mvp-complete",
-    debug=settings.DEBUG,
-    lifespan=lifespan
-)
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
-async def root():
-    return {
-        "app": "TravelCompanion AI",
-        "version": "1.0.0-mvp-complete",
-        "status": "running",
-        "environment": settings.ENVIRONMENT,
-        "features": [
-            "Upload de documentos",
-            "RAG com ChromaDB",
-            "Notificações proativas",
-            "Monitoramento de voos",
-            "Geolocalização",
-            "Multi-API modular"
-        ]
-    }
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "apis_configured": len([k for k in dir(settings) if k.endswith('_API_KEY')])}
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=settings.PORT,
-        reload=settings.DEBUG
-    )
-'''
-
-# ============================================================
 # APP/CONFIG.PY (MODULAR PARA NOVAS APIs)
 # ============================================================
 FILES["app/config.py"] = '''"""
@@ -272,7 +112,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
     API_SECRET_KEY: str = "change-in-production"
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "*"
     
     @property
     def cors_origins_list(self) -> list:
@@ -286,7 +126,12 @@ class Settings(BaseSettings):
     ENABLE_DUAL_AI_CONSENSUS: bool = True
     
     # ============================================================
-    # WHATSAPP
+    # BANCO DE DADOS (POSTGRESQL)
+    # ============================================================
+    DATABASE_URL: Optional[str] = None
+
+    # ============================================================
+    # WHATSAPP (DIRETO - OPCIONAL)
     # ============================================================
     WHATSAPP_TOKEN: Optional[str] = None
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
@@ -295,12 +140,12 @@ class Settings(BaseSettings):
     # ============================================================
     # MAPAS E GEOLOCALIZAÇÃO
     # ============================================================
-    GOOGLE_MAPS_API_KEY: str
+    GOOGLE_MAPS_API_KEY: Optional[str] = None
     
     # ============================================================
     # CLIMA
     # ============================================================
-    OPENWEATHER_API_KEY: str
+    OPENWEATHER_API_KEY: Optional[str] = None
     
     # ============================================================
     # VOOS
@@ -312,25 +157,11 @@ class Settings(BaseSettings):
     # BUSCA E COMUNIDADES
     # ============================================================
     TAVILY_API_KEY: Optional[str] = None
-    REDDIT_CLIENT_ID: Optional[str] = None
-    REDDIT_CLIENT_SECRET: Optional[str] = None
-    REDDIT_USER_AGENT: str = "travel_assistant:v1.0"
     
     # ============================================================
-    # LOCAIS E RESTAURANTES
+    # N8N E AUTOMAÇÃO (NOSSO FLUXO PRINCIPAL)
     # ============================================================
-    FOURSQUARE_API_KEY: Optional[str] = None
-    
-    # ============================================================
-    # SÍNTESE DE VOZ
-    # ============================================================
-    ELEVENLABS_API_KEY: Optional[str] = None
-    
-    # ============================================================
-    # N8N E AUTOMAÇÃO
-    # ============================================================
-    N8N_API_KEY: Optional[str] = None
-    N8N_WEBHOOK_URL: Optional[str] = None
+    N8N_WEBHOOK_URL_OUTPUT: Optional[str] = None
     
     # ============================================================
     # ARMAZENAMENTO
@@ -465,29 +296,7 @@ class Notification(BaseModel):
 '''
 
 # ============================================================
-# GUIA DE EXPANSÃO (Corrigido para não quebrar a cópia)
-# ============================================================
-FILES["EXPANSAO.md"] = """# Guia de Expansão - Como Adicionar Novas APIs
-
-## Processo Simples em 3 Passos:
-
-### PASSO 1: Adicionar no .env
-Abra o arquivo .env e adicione sua nova API:
-`NOVA_API_KEY=sua_chave_aqui`
-
-### PASSO 2: Adicionar no app/config.py
-Adicione o campo na classe Settings:
-`NOVA_API_KEY: Optional[str] = None`
-
-### PASSO 3: Usar nos seus serviços
-Importe as configurações e use a chave em qualquer lugar do projeto:
-
-    from app.config import settings
-    print(settings.NOVA_API_KEY)
-"""
-
-# ============================================================
-# INJEÇÃO AUTOMÁTICA DE __INIT__.PY (Restauração)
+# INJEÇÃO AUTOMÁTICA DE __INIT__.PY
 # ============================================================
 for folder in ["app/database", "app/parsers", "app/services", "app/agents", "app/api", "app/utils", "tests"]:
     if f"{folder}/__init__.py" not in FILES:
@@ -501,7 +310,7 @@ def create_project_structure():
     """Cria toda a estrutura do projeto"""
     
     print("=" * 60)
-    print("🚀 TRAVELCOMPANION AI - MVP COMPLETO")
+    print("🚀 TRAVELCOMPANION AI - SETUP SEGURO")
     print("=" * 60)
     print()
     
@@ -514,25 +323,20 @@ def create_project_structure():
     print()
     
     # Criar arquivos
-    print("📝 Criando arquivos...")
+    print("📝 Criando arquivos de configuração...")
     for filepath, content in FILES.items():
+        # Proteção extra: não sobrescrever arquivos sensíveis se já existirem
+        if filepath in ["main.py", ".env"] and Path(filepath).exists():
+            print(f"   ⏭️ Pulando {filepath} (Já existe e foi configurado manualmente)")
+            continue
+            
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"   ✅ {filepath}")
     
     print()
     print("=" * 60)
-    print("✅ PROJETO CRIADO COM SUCESSO!")
-    print("=" * 60)
-    print()
-    print("📋 PRÓXIMOS PASSOS:")
-    print()
-    print("1️⃣  Instalar dependências:")
-    print("   pip install -r requirements.txt")
-    print()
-    print("2️⃣  Executar servidor FastAPI:")
-    print("   python main.py")
-    print()
+    print("✅ SETUP SEGURO CONCLUÍDO!")
     print("=" * 60)
 
 if __name__ == "__main__":

@@ -1,44 +1,53 @@
 """
-Teste do TravelAgent com LangGraph
+Teste do TravelAgent com LangGraph (Simulando fluxo do WhatsApp/n8n)
 """
 
 from app.agents.orchestrator import TravelAgent
 from loguru import logger
 
 def test_agent():
-    """Testa o agente com diferentes perguntas"""
+    """Testa o agente simulando conversas reais com memória"""
     
     print("=" * 70)
-    print("🧪 TESTANDO TRAVELAGENT COM LANGGRAPH")
+    print("🧪 TESTANDO TRAVELAGENT COM LANGGRAPH E MEMÓRIA")
     print("=" * 70)
     print()
     
     # Inicializar agente
     agent = TravelAgent()
     
-    # Teste 1: Pergunta simples (não precisa de tools)
-    print("📝 TESTE 1: Pergunta simples")
-    print("-" * 70)
-    response = agent.chat("Olá! O que você pode fazer por mim?")
-    print(f"🤖 Resposta: {response}")
-    print()
+    # Simulando um número de WhatsApp vindo do n8n (usado como thread_id)
+    numero_whatsapp = "5511999999999"
     
-    # Teste 2: Clima (deve usar tool get_current_weather)
-    print("📝 TESTE 2: Clima (deve chamar tool)")
+    # Teste 1: Apresentação (A IA deve guardar isso na memória)
+    print("📝 TESTE 1: Apresentação (Guardando na memória)")
     print("-" * 70)
-    response = agent.chat("Qual é o clima em Paris agora?")
-    print(f"🤖 Resposta: {response}")
-    print()
+    pergunta_1 = "Olá! Meu nome é Carlos e vou para Paris mês que vem."
+    print(f"👤 Usuário ({numero_whatsapp}): {pergunta_1}")
     
-    # Teste 3: Recomendações (deve usar tool get_travel_recommendations)
-    print("📝 TESTE 3: Recomendações (deve chamar tool)")
+    response = agent.chat(user_input=pergunta_1, thread_id=numero_whatsapp)
+    print(f"🤖 IA: {response}\n")
+    
+    # Teste 2: Contexto (A IA deve usar a tool de clima e lembrar que é Paris)
+    print("📝 TESTE 2: Clima (Testando uso de Ferramenta + Memória)")
     print("-" * 70)
-    response = agent.chat("Me dê dicas para viajar para Tóquio. Gosto de tecnologia e gastronomia.")
-    print(f"🤖 Resposta: {response}")
-    print()
+    pergunta_2 = "Como está o clima lá agora?" # "Lá" exige que a IA puxe "Paris" da memória
+    print(f"👤 Usuário ({numero_whatsapp}): {pergunta_2}")
+    
+    response = agent.chat(user_input=pergunta_2, thread_id=numero_whatsapp)
+    print(f"🤖 IA: {response}\n")
+    
+    # Teste 3: Resgate de Memória Explícita
+    print("📝 TESTE 3: Resgate de Memória e Recomendações")
+    print("-" * 70)
+    pergunta_3 = "Você lembra o meu nome? Me dê 3 dicas de restaurantes bons por lá."
+    print(f"👤 Usuário ({numero_whatsapp}): {pergunta_3}")
+    
+    response = agent.chat(user_input=pergunta_3, thread_id=numero_whatsapp)
+    print(f"🤖 IA: {response}\n")
     
     print("=" * 70)
-    print("✅ TESTES CONCLUÍDOS!")
+    print("✅ TESTES CONCLUÍDOS COM SUCESSO!")
     print("=" * 70)
 
 if __name__ == "__main__":

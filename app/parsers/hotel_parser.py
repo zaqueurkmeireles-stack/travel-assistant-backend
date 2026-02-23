@@ -11,39 +11,28 @@ class HotelParser(BaseParser):
     """Parser especializado em reservas de hotel"""
     
     def __init__(self, openai_svc: OpenAIService = None):
-        """Inicializa o parser de hotéis com injeção de dependência"""
         super().__init__(openai_svc)
-        self.supported_formats = ['pdf']
-        logger.info("✅ HotelParser inicializado")
+        logger.info("✅ HotelParser inicializado (Com suporte a OCR)")
     
     def parse(self, file_content: bytes, filename: str) -> Dict[str, Any]:
-        """Extrai informações de uma reserva de hotel"""
         logger.info(f"🏨 Parseando reserva de hotel: {filename}")
         
-        if filename.lower().endswith('.pdf'):
-            text = self.extract_text_from_pdf(file_content)
-        else:
-            logger.warning(f"Formato {filename} requer OCR ou Vision API")
-            text = "Imagem de reserva (OCR pendente)"
+        text = self.extract_text(file_content, filename)
         
         if not self.is_valid_text(text):
             return {
                 "success": False,
-                "error": "Texto insuficiente, formato inválido ou requer OCR (envie PDF).",
+                "error": "Não foi possível extrair texto legível da imagem ou PDF.",
                 "document_type": "hotel_reservation",
                 "filename": filename
             }
         
         if not self.openai_svc:
-            return {
-                "success": False,
-                "error": "OpenAI Service não configurado",
-                "document_type": "hotel_reservation"
-            }
+            return {"success": False, "error": "OpenAI Service não configurado"}
         
         result = self.openai_svc.analyze_document(text, "reserva de hotel")
         result["document_type"] = "hotel_reservation"
         result["filename"] = filename
         
-        logger.info(f"✅ Reserva parseada: {result.get('hotel_name', 'N/A')}")
+        logger.info(f"✅ Reserva parseada com sucesso!")
         return result

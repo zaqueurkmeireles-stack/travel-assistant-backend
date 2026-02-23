@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
     API_SECRET_KEY: str = "change-in-production"
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "*"
     
     @property
     def cors_origins_list(self) -> list:
@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     ENABLE_DUAL_AI_CONSENSUS: bool = True
     
     # ============================================================
-    # WHATSAPP
+    # BANCO DE DADOS (POSTGRESQL)
+    # ============================================================
+    DATABASE_URL: Optional[str] = None
+
+    # ============================================================
+    # WHATSAPP (DIRETO - OPCIONAL)
     # ============================================================
     WHATSAPP_TOKEN: Optional[str] = None
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
@@ -38,12 +43,12 @@ class Settings(BaseSettings):
     # ============================================================
     # MAPAS E GEOLOCALIZAÇÃO
     # ============================================================
-    GOOGLE_MAPS_API_KEY: str
+    GOOGLE_MAPS_API_KEY: Optional[str] = None
     
     # ============================================================
     # CLIMA
     # ============================================================
-    OPENWEATHER_API_KEY: str
+    OPENWEATHER_API_KEY: Optional[str] = None
     
     # ============================================================
     # VOOS
@@ -55,25 +60,11 @@ class Settings(BaseSettings):
     # BUSCA E COMUNIDADES
     # ============================================================
     TAVILY_API_KEY: Optional[str] = None
-    REDDIT_CLIENT_ID: Optional[str] = None
-    REDDIT_CLIENT_SECRET: Optional[str] = None
-    REDDIT_USER_AGENT: str = "travel_assistant:v1.0"
     
     # ============================================================
-    # LOCAIS E RESTAURANTES
+    # N8N E AUTOMAÇÃO (NOSSO FLUXO PRINCIPAL)
     # ============================================================
-    FOURSQUARE_API_KEY: Optional[str] = None
-    
-    # ============================================================
-    # SÍNTESE DE VOZ
-    # ============================================================
-    ELEVENLABS_API_KEY: Optional[str] = None
-    
-    # ============================================================
-    # N8N E AUTOMAÇÃO
-    # ============================================================
-    N8N_API_KEY: Optional[str] = None
-    N8N_WEBHOOK_URL: Optional[str] = None
+    N8N_WEBHOOK_URL_OUTPUT: Optional[str] = None
     
     # ============================================================
     # ARMAZENAMENTO

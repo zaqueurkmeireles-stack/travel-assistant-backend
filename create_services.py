@@ -112,7 +112,7 @@ class OpenAIService:
 '''
 
 # ============================================================
-# GEMINI SERVICE (NOVO)
+# GEMINI SERVICE
 # ============================================================
 FILES["app/services/gemini_service.py"] = '''"""
 Gemini Service - Inteligência Alternativa para Debate e Robustez
@@ -164,7 +164,7 @@ class GeminiService:
 '''
 
 # ============================================================
-# SEARCH SERVICE (NOVO)
+# SEARCH SERVICE
 # ============================================================
 FILES["app/services/search_service.py"] = '''"""
 Search Service - Busca de dicas reais na internet via Tavily
@@ -495,7 +495,7 @@ class FlightsService:
 '''
 
 # ============================================================
-# WHATSAPP SERVICE
+# WHATSAPP SERVICE (MANTIDO)
 # ============================================================
 FILES["app/services/whatsapp_service.py"] = '''"""
 WhatsApp Service - Envio de mensagens via WhatsApp Business API
@@ -551,42 +551,57 @@ class WhatsAppService:
         except Exception as e:
             logger.error(f"Erro no WhatsAppService: {e}")
             return False
+'''
+
+# ============================================================
+# N8N SERVICE (NOVO - NOSSA INTEGRAÇÃO)
+# ============================================================
+FILES["app/services/n8n_service.py"] = '''"""
+N8N Service - Integração com o fluxo do n8n (WhatsApp + Chatwoot)
+"""
+
+import requests
+from loguru import logger
+from typing import Dict, Any
+
+class N8nService:
+    """Service para enviar mensagens de volta para o usuário através do n8n"""
     
-    def send_location(self, to: str, latitude: float, longitude: float, name: str, address: str) -> bool:
-        """Envia localização"""
-        if not self.token or not self.phone_number_id:
-            logger.info(f"[SIMULADO] Localização para {to}: {name} ({latitude}, {longitude})")
-            return True
+    def __init__(self):
+        # A URL do webhook do n8n que vai RECEBER as respostas da nossa IA
+        # Vamos configurar isso no arquivo .env depois
+        import os
+        self.webhook_url = os.getenv("N8N_WEBHOOK_URL_OUTPUT", "")
         
+        if not self.webhook_url:
+            logger.warning("⚠️ URL do Webhook do n8n não configurada (modo simulação)")
+        else:
+            logger.info("✅ N8n Service inicializado")
+            
+    def enviar_resposta_usuario(self, numero_usuario: str, mensagem: str) -> bool:
+        """Envia a resposta gerada pela IA de volta para o n8n entregar no WhatsApp"""
+        if not self.webhook_url:
+            logger.info(f"[SIMULADO - N8N] Para {numero_usuario}: {mensagem}")
+            return True
+            
         try:
-            url = f"{self.base_url}/{self.phone_number_id}/messages"
-            headers = {
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"
-            }
-            data = {
-                "messaging_product": "whatsapp",
-                "to": to,
-                "type": "location",
-                "location": {
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "name": name,
-                    "address": address
-                }
+            payload = {
+                "telefone": numero_usuario,
+                "mensagem": mensagem,
+                "origem": "ia_travel_companion"
             }
             
-            response = requests.post(url, headers=headers, json=data, timeout=15)
+            response = requests.post(self.webhook_url, json=payload, timeout=15)
             
             if response.status_code == 200:
-                logger.info(f"✅ Localização enviada para {to}")
+                logger.info(f"✅ Resposta enviada para o n8n (Destino: {numero_usuario})")
                 return True
             else:
-                logger.error(f"Erro ao enviar localização: {response.text}")
+                logger.error(f"❌ Erro ao enviar para o n8n. Status: {response.status_code}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Erro ao enviar localização: {e}")
+            logger.error(f"❌ Erro de conexão com o n8n: {e}")
             return False
 '''
 
@@ -602,6 +617,7 @@ from .maps_service import GoogleMapsService
 from .weather_service import WeatherService
 from .flights_service import FlightsService
 from .whatsapp_service import WhatsAppService
+from .n8n_service import N8nService
 
 __all__ = [
     "OpenAIService",
@@ -610,7 +626,8 @@ __all__ = [
     "GoogleMapsService",
     "WeatherService",
     "FlightsService",
-    "WhatsAppService"
+    "WhatsAppService",
+    "N8nService"
 ]
 '''
 
@@ -642,7 +659,8 @@ def create_services():
     print("   🗺️  Google Maps Service - Geolocalização")
     print("   🌤️  Weather Service - Clima")
     print("   ✈️  Flights Service - Status de voos")
-    print("   📱 WhatsApp Service - Mensagens")
+    print("   📱 WhatsApp Service - Mensagens (Direto)")
+    print("   🔄 N8n Service - Integração WhatsApp + Chatwoot")
     print()
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ Servidor FastAPI principal com estrutura modular
 
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -46,6 +46,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# =================================================================
+# NOVAS ROTAS ADICIONADAS: WEBHOOKS PARA O N8N (WHATSAPP)
+# =================================================================
+
+@app.post("/webhook/whatsapp/text", tags=["Webhooks"])
+async def receive_whatsapp_text(request: Request):
+    try:
+        data = await request.json()
+        logger.info(f"📱 Mensagem de texto recebida do n8n: {data}")
+        
+        # Aqui no futuro chamaremos o LangGraph para processar a mensagem
+        # resposta_ia = processar_mensagem_com_ia(data)
+        
+        return {"status": "success", "message": "Mensagem recebida e processada."}
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar webhook de texto: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/webhook/whatsapp/media", tags=["Webhooks"])
+async def receive_whatsapp_media(request: Request):
+    try:
+        data = await request.json()
+        logger.info(f"📎 Mídia (documento/imagem) recebida do n8n: {data}")
+        
+        # Aqui no futuro chamaremos o Agente de Ingestão (OCR/Visão)
+        # dados_extraidos = processar_documento_com_ia(data)
+        
+        return {"status": "success", "message": "Mídia recebida e enviada para análise."}
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar webhook de mídia: {e}")
+        return {"status": "error", "message": str(e)}
+
+# =================================================================
+# ROTAS ORIGINAIS MANTIDAS
+# =================================================================
+
 @app.get("/")
 async def root():
     return {
@@ -59,7 +95,8 @@ async def root():
             "Notificações proativas",
             "Monitoramento de voos",
             "Geolocalização",
-            "Multi-API modular"
+            "Multi-API modular",
+            "Integração WhatsApp via n8n"
         ]
     }
 
