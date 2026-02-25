@@ -11,6 +11,8 @@ from app.services.search_service import SearchService
 from app.services.rag_service import RAGService
 from app.services.duffel_service import DuffelService
 from app.services.serpapi_service import SerpApiService
+from app.services.finance_service import FinanceService
+from app.services.connectivity_service import ConnectivityService
 from loguru import logger
 
 # Lazy initialization para evitar erros de ordem de importação
@@ -22,6 +24,8 @@ _search_svc = None
 _rag_svc = None
 _duffel_svc = None
 _serpapi_svc = None
+_finance_svc = None
+_connectivity_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -70,6 +74,18 @@ def get_serpapi_svc():
     if _serpapi_svc is None:
         _serpapi_svc = SerpApiService()
     return _serpapi_svc
+
+def get_finance_svc():
+    global _finance_svc
+    if _finance_svc is None:
+        _finance_svc = FinanceService()
+    return _finance_svc
+
+def get_connectivity_svc():
+    global _connectivity_svc
+    if _connectivity_svc is None:
+        _connectivity_svc = ConnectivityService()
+    return _connectivity_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -169,6 +185,23 @@ def search_hotels(city: str, check_in_date: str, check_out_date: str) -> str:
     logger.info(f"🏨 Tool: Buscando hotéis em {city}")
     return get_serpapi_svc().search_hotels(city, check_in_date, check_out_date)
 
+@tool
+def convert_currency(amount: float, from_currency: str, to_currency: str = "BRL") -> str:
+    """
+    Converte valores entre moedas (ex: USD para BRL, EUR para BRL).
+    Use quando o usuário perguntar preços em outra moeda ou quiser saber cotações.
+    """
+    logger.info(f"💸 Tool: Convertendo {amount} {from_currency} para {to_currency}")
+    return get_finance_svc().convert_currency(amount, from_currency, to_currency)
+
+@tool
+def get_internet_options(destination: str) -> str:
+    """
+    Obtém as melhores opções de chip de internet e eSIM para o destino do viajante.
+    """
+    logger.info(f"📶 Tool: Opções de internet para {destination}")
+    return get_connectivity_svc().get_e_sim_recommendations(destination)
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -180,5 +213,7 @@ ALL_TOOLS = [
     register_expense,
     query_travel_documents,
     search_flights,
-    search_hotels
+    search_hotels,
+    convert_currency,
+    get_internet_options
 ]
