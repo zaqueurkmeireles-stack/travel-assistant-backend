@@ -62,7 +62,17 @@ class OpenAIService:
         messages = [
             {
                 "role": "system",
-                "content": f"Extraia informações estruturadas deste documento de {document_type}. Retorne estritamente em JSON."
+                "content": (
+                    f"Você é um especialista em processamento de documentos de viagem ({document_type}).\n"
+                    "Extraia as informações estruturadas e responda APENAS com um objeto JSON.\n"
+                    "Campos obrigatórios se encontrados:\n"
+                    "- 'destination': Cidade ou país de destino.\n"
+                    "- 'start_date': Data de início/partida no formato YYYY-MM-DD.\n"
+                    "- 'end_date': Data de término/retorno no formato YYYY-MM-DD.\n"
+                    "- 'travelers': Lista de nomes de viajantes.\n"
+                    "- 'confirmation_code': Código de reserva ou localizador.\n"
+                    "- 'summary': Breve resumo do documento."
+                )
             },
             {
                 "role": "user",

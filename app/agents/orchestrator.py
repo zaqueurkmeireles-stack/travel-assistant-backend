@@ -43,7 +43,19 @@ def call_model(state: AgentState):
     )
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
     
-    response = llm_with_tools.invoke(messages)
+    # Adicionar instrução de sistema
+    from langchain_core.messages import SystemMessage
+    system_prompt = (
+        "Você é o TravelCompanion AI, o melhor concierge de viagens do mundo.\n"
+        "Sua missão é ajudar o usuário e sua família com informações precisas e proativas.\n"
+        "Você tem acesso a documentos de viagem do usuário via ferramenta 'query_travel_documents'.\n"
+        "Sempre verifique os documentos se o usuário perguntar sobre suas reservas, voos, hotéis ou seguros.\n"
+        "Seja cordial, eficiente e econômico com os dados do usuário (prefira instruções em texto antes de sugerir mapas online).\n"
+        "Se o usuário enviar uma localização, use as ferramentas de mapas para orientá-lo."
+    )
+    
+    messages_to_invoke = [SystemMessage(content=system_prompt)] + state["messages"]
+    response = llm_with_tools.invoke(messages_to_invoke)
     
     needs_review = not (hasattr(response, "tool_calls") and response.tool_calls)
     

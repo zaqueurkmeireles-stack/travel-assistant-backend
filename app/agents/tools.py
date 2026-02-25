@@ -8,6 +8,7 @@ from app.services.maps_service import GoogleMapsService
 from app.services.weather_service import WeatherService
 from app.services.flights_service import FlightsService
 from app.services.search_service import SearchService
+from app.services.rag_service import RAGService
 from loguru import logger
 
 # Lazy initialization para evitar erros de ordem de importação
@@ -16,6 +17,7 @@ _maps_svc = None
 _weather_svc = None
 _flights_svc = None
 _search_svc = None
+_rag_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -46,6 +48,12 @@ def get_search_svc():
     if _search_svc is None:
         _search_svc = SearchService()
     return _search_svc
+
+def get_rag_svc():
+    global _rag_svc
+    if _rag_svc is None:
+        _rag_svc = RAGService()
+    return _rag_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -113,6 +121,19 @@ def register_expense(expense_text: str) -> str:
     result = get_openai_svc().analyze_expense(expense_text)
     return f"Despesa registrada: {result['amount']} {result['currency']} (Categoria: {result['category']})."
 
+from langchain_core.runnables import RunnableConfig
+
+@tool
+def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
+    """
+    Busca informações em documentos pessoais de viagem (passagens, hotéis, seguros) 
+    armazenados na memória (RAG). Use quando o usuário perguntar detalhes específicos 
+    de sua própria viagem.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"📂 Tool: Consultando documentos (Thread: {thread_id})")
+    return get_rag_svc().query(query_text, thread_id)
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -121,5 +142,6 @@ ALL_TOOLS = [
     find_nearby_places,
     search_real_travel_tips,
     get_directions,
-    register_expense
+    register_expense,
+    query_travel_documents
 ]

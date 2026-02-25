@@ -14,7 +14,7 @@ class GeminiService:
         """Inicializa o cliente Gemini usando LangChain"""
         if settings.GOOGLE_GEMINI_API_KEY:
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash", 
+                model="gemini-2.0-flash", 
                 google_api_key=settings.GOOGLE_GEMINI_API_KEY,
                 temperature=0.7
             )
