@@ -10,6 +10,7 @@ from app.services.flights_service import FlightsService
 from app.services.search_service import SearchService
 from app.services.rag_service import RAGService
 from app.services.duffel_service import DuffelService
+from app.services.serpapi_service import SerpApiService
 from loguru import logger
 
 # Lazy initialization para evitar erros de ordem de importação
@@ -20,6 +21,7 @@ _flights_svc = None
 _search_svc = None
 _rag_svc = None
 _duffel_svc = None
+_serpapi_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -62,6 +64,12 @@ def get_duffel_svc():
     if _duffel_svc is None:
         _duffel_svc = DuffelService()
     return _duffel_svc
+
+def get_serpapi_svc():
+    global _serpapi_svc
+    if _serpapi_svc is None:
+        _serpapi_svc = SerpApiService()
+    return _serpapi_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -152,6 +160,15 @@ def search_flights(origin: str, destination: str, departure_date: str, return_da
     logger.info(f"✈️ Tool: Buscando voos de {origin} para {destination}")
     return get_duffel_svc().search_flights(origin, destination, departure_date, return_date if return_date else None)
 
+@tool
+def search_hotels(city: str, check_in_date: str, check_out_date: str) -> str:
+    """
+    Busca hotéis reais com preços atuais via Google Hotels.
+    check_in_date e check_out_date devem estar no formato YYYY-MM-DD.
+    """
+    logger.info(f"🏨 Tool: Buscando hotéis em {city}")
+    return get_serpapi_svc().search_hotels(city, check_in_date, check_out_date)
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -162,5 +179,6 @@ ALL_TOOLS = [
     get_directions,
     register_expense,
     query_travel_documents,
-    search_flights
+    search_flights,
+    search_hotels
 ]
