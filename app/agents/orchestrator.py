@@ -64,43 +64,53 @@ def call_model(state: AgentState):
         "needs_gemini_review": needs_review
     }
 
-def gemini_review(state: AgentState):
-    """Nó de Consenso: Aciona o Gemini para revisar respostas complexas"""
-    logger.info("🧠 Acionando revisão do Gemini...")
+def expert_consensus_review(state: AgentState):
+    """Nó de Consenso: Aciona Gemini e Claude para revisar respostas complexas"""
+    logger.info("🧠 Acionando revisão por Consenso de Especialistas...")
     
     try:
-        from app.services.gemini_service import GeminiService
-        gemini_svc = GeminiService()
-        
         messages = state["messages"]
         last_ai_message = None
+        user_query = ""
         
         for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and msg.content:
+            if isinstance(msg, AIMessage) and msg.content and not last_ai_message:
                 last_ai_message = msg.content
-                break
+            if isinstance(msg, HumanMessage) and msg.content and not user_query:
+                user_query = msg.content
         
-        # 🛡️ DEFESA: Retornar o estado completo para não quebrar validação do LangGraph
-        if not last_ai_message or len(last_ai_message) < 200:
-            logger.info("⏩ Resposta curta, pulando revisão do Gemini.")
+        if not last_ai_message or len(last_ai_message) < 150:
             return {"messages": [], "needs_gemini_review": False}
-        
-        history = "\n".join([
-            m.content for m in messages 
-            if isinstance(m, (HumanMessage, AIMessage)) and hasattr(m, 'content') and m.content
-        ])
-        
-        second_opinion = gemini_svc.get_second_opinion(
-            original_plan=last_ai_message,
-            real_tips=history
-        )
-        
-        refined = f"{last_ai_message}\n\n---\n✨ **Segunda Opinião do Especialista (Gemini):**\n{second_opinion}"
-        
-        return {"messages": [AIMessage(content=refined)], "needs_gemini_review": False}
+            
+        final_response = last_ai_message
+        gemini_opinion = ""
+
+        # 1. Obter opinião do Gemini
+        if settings.GOOGLE_GEMINI_API_KEY:
+            try:
+                from app.services.gemini_service import GeminiService
+                gemini_svc = GeminiService()
+                gemini_opinion = gemini_svc.get_second_opinion(last_ai_message, user_query)
+                logger.info("✅ Opinião do Gemini obtida.")
+            except Exception as e:
+                logger.error(f"Erro no Gemini: {e}")
+
+        # 2. Obter refinamento final do Claude (Veredito)
+        if settings.ANTHROPIC_API_KEY:
+            try:
+                from app.services.claude_service import ClaudeService
+                claude_svc = ClaudeService()
+                final_response = claude_svc.get_refined_answer(user_query, last_ai_message, gemini_opinion)
+                logger.info("✅ Veredito final do Claude obtido.")
+            except Exception as e:
+                logger.error(f"Erro no Claude: {e}")
+        elif gemini_opinion:
+            final_response = f"{last_ai_message}\n\n---\n✨ **Revisão Técnica (Gemini):**\n{gemini_opinion}"
+
+        return {"messages": [AIMessage(content=final_response)], "needs_gemini_review": False}
         
     except Exception as e:
-        logger.error(f"Erro no Gemini review: {e}")
+        logger.error(f"Erro no Expert Review: {e}")
         return {"messages": [], "needs_gemini_review": False}
 
 def route_after_agent(state: AgentState) -> Literal["tools", "gemini_review", "end"]:
@@ -116,8 +126,8 @@ def route_after_agent(state: AgentState) -> Literal["tools", "gemini_review", "e
     dual_ai_enabled = getattr(settings, "ENABLE_DUAL_AI_CONSENSUS", False)
     
     if dual_ai_enabled and state.get("needs_gemini_review", False):
-        logger.info("➡️ Roteando para Gemini Review...")
-        return "gemini_review"
+        logger.info("➡️ Roteando para Expert Consensus Review...")
+        return "expert_review"
     
     logger.info("✅ Finalizando Orquestração...")
     return "end"
@@ -133,7 +143,7 @@ def create_agent_graph():
     
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", tool_node)
-    workflow.add_node("gemini_review", gemini_review)
+    workflow.add_node("expert_review", expert_consensus_review)
     
     workflow.set_entry_point("agent")
     
@@ -142,13 +152,13 @@ def create_agent_graph():
         route_after_agent,
         {
             "tools": "tools",
-            "gemini_review": "gemini_review",
+            "expert_review": "expert_review",
             "end": END
         }
     )
     
     workflow.add_edge("tools", "agent")
-    workflow.add_edge("gemini_review", END)
+    workflow.add_edge("expert_review", END)
     
     # 🛡️ DEFESA: MemorySaver condicional para não quebrar se módulo mudar
     try:
