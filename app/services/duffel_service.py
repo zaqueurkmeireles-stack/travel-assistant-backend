@@ -14,8 +14,8 @@ class DuffelService:
     def __init__(self):
         """Inicializa o cliente Duffel"""
         if settings.DUFFEL_API_KEY:
-            self.client = Duffel(access_token=settings.DUFFEL_API_KEY)
-            logger.info("✅ Duffel Service inicializado")
+            self.client = Duffel(access_token=settings.DUFFEL_API_KEY, version="v1")
+            logger.info("✅ Duffel Service inicializado (v1)")
         else:
             self.client = None
             logger.warning("⚠️ Chave do Duffel não configurada.")
@@ -48,7 +48,7 @@ class DuffelService:
                 })
                 
             offer_request = self.client.offer_requests.create() \
-                .passenger_returns_with_type("adult") \
+                .passengers([{"type": "adult"}]) \
                 .slices(slices) \
                 .return_offers() \
                 .execute()
