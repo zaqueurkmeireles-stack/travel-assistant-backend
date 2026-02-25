@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     GOOGLE_GEMINI_API_KEY: Optional[str] = None
     ENABLE_DUAL_AI_CONSENSUS: bool = True
     ANTHROPIC_API_KEY: Optional[str] = None
+    DUFFEL_API_KEY: Optional[str] = None
     ELEVENLABS_API_KEY: Optional[str] = None
     
     # ============================================================

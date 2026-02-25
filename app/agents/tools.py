@@ -9,6 +9,7 @@ from app.services.weather_service import WeatherService
 from app.services.flights_service import FlightsService
 from app.services.search_service import SearchService
 from app.services.rag_service import RAGService
+from app.services.duffel_service import DuffelService
 from loguru import logger
 
 # Lazy initialization para evitar erros de ordem de importação
@@ -18,6 +19,7 @@ _weather_svc = None
 _flights_svc = None
 _search_svc = None
 _rag_svc = None
+_duffel_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -54,6 +56,12 @@ def get_rag_svc():
     if _rag_svc is None:
         _rag_svc = RAGService()
     return _rag_svc
+
+def get_duffel_svc():
+    global _duffel_svc
+    if _duffel_svc is None:
+        _duffel_svc = DuffelService()
+    return _duffel_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -134,6 +142,16 @@ def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
     logger.info(f"📂 Tool: Consultando documentos (Thread: {thread_id})")
     return get_rag_svc().query(query_text, thread_id)
 
+@tool
+def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "") -> str:
+    """
+    Busca ofertas de voos REAIS em tempo real.
+    origin/destination: Códigos IATA de 3 letras (ex: GRU para São Paulo, CDG para Paris).
+    departure_date/return_date: Formato YYYY-MM-DD.
+    """
+    logger.info(f"✈️ Tool: Buscando voos de {origin} para {destination}")
+    return get_duffel_svc().search_flights(origin, destination, departure_date, return_date if return_date else None)
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -143,5 +161,6 @@ ALL_TOOLS = [
     search_real_travel_tips,
     get_directions,
     register_expense,
-    query_travel_documents
+    query_travel_documents,
+    search_flights
 ]
