@@ -20,7 +20,13 @@ class UserService:
         if os.path.exists(self.db_path):
             try:
                 with open(self.db_path, 'r', encoding='utf-8') as f:
-                    self.users = json.load(f)
+                    raw_users = json.load(f)
+                    # Normalizar chaves carregadas e re-salvar com as novas chaves
+                    normalized = {}
+                    for k, v in raw_users.items():
+                        norm_k = self.normalize_phone(k)
+                        normalized[norm_k] = v
+                    self.users = normalized
             except Exception as e:
                 logger.error(f"Erro ao carregar usuários: {e}")
                 self.users = {}
@@ -34,29 +40,32 @@ class UserService:
         except Exception as e:
             logger.error(f"Erro ao salvar usuários: {e}")
 
+    def normalize_phone(self, phone: str) -> str:
+        """Normaliza o número removendo o 9º dígito (Brasil) se existir para manter consistência."""
+        if not phone: return ""
+        p = phone.replace("@s.whatsapp.net", "").replace("+", "").strip()
+        # Se for BR (+55) e tiver 13 dígitos (ex: 55 41 9 88368783) -> remove o 9
+        if p.startswith("55") and len(p) == 13:
+            return p[:4] + p[5:]
+        return p
+
     def _ensure_admin(self):
-        admin_number = settings.ADMIN_WHATSAPP_NUMBER
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         if admin_number and admin_number not in self.users:
-            # Remover sufixos padronizados se existirem, mas o ideal é tratar no uso
-            admin_id = admin_number
-            if "@s.whatsapp.net" in admin_id:
-                admin_id = admin_id.replace("@s.whatsapp.net", "")
-            
-            self.users[admin_id] = {
+            self.users[admin_number] = {
                 "role": "admin",
                 "authorized_trips": [],
                 "active_trip_id": None,
                 "created_at": datetime.now().isoformat()
             }
             self._save_users()
-            logger.info(f"👑 Admin configurado: {admin_id}")
+            logger.info(f"👑 Admin configurado: {admin_number}")
 
     def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
-        # Remove sufixos do whatsapp por segurança
-        uid = user_id.replace("@s.whatsapp.net", "")
+        uid = self.normalize_phone(user_id)
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         
-        # Para evitar bloquear o administrador se ele não estiver no arquivo mas estiver na variável de ambiente
-        if uid == settings.ADMIN_WHATSAPP_NUMBER and uid not in self.users:
+        if uid == admin_number and uid not in self.users:
             self._ensure_admin()
             
         return self.users.get(uid)
@@ -65,9 +74,9 @@ class UserService:
         """Retorna 'admin', 'guest' ou 'unauthorized'"""
         user = self.get_user(user_id)
         if not user:
-            # Fallback: se o USER_ID bater com o ADMIN da env local, cria ele como admin
-            uid = user_id.replace("@s.whatsapp.net", "")
-            if uid == settings.ADMIN_WHATSAPP_NUMBER:
+            uid = self.normalize_phone(user_id)
+            admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+            if uid == admin_number and admin_number:
                 self._ensure_admin()
                 return "admin"
             return "unauthorized"
@@ -80,10 +89,11 @@ class UserService:
         return user.get("active_trip_id")
 
     def set_active_trip(self, user_id: str, trip_id: str):
-        uid = user_id.replace("@s.whatsapp.net", "")
-        # Adiciona aos usuários da trip se já existir no banco (para Admin principalmente)
+        uid = self.normalize_phone(user_id)
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        
         if uid not in self.users:
-            if uid == settings.ADMIN_WHATSAPP_NUMBER:
+            if uid == admin_number and admin_number:
                 self._ensure_admin()
             else:
                 return False
@@ -101,7 +111,7 @@ class UserService:
             logger.warning(f"Usuário {admin_id} não é admin e tentou autorizar {guest_id}")
             return False
             
-        uid = guest_id.replace("@s.whatsapp.net", "")
+        uid = self.normalize_phone(guest_id)
         
         if uid not in self.users:
             self.users[uid] = {
