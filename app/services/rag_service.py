@@ -90,31 +90,33 @@ class RAGService:
         return dot_product / (norm_v1 * norm_v2)
 
     def query(self, query_text: str, thread_id: str, k: int = 3) -> str:
-        """Busca semântica filtrada por usuário (thread_id)"""
+        """Busca semântica filtrada por viagem ativa do usuário"""
         if not self.documents:
             return "Você ainda não enviou nenhum documento de viagem."
             
         try:
-            logger.info(f"🔍 Buscando no RAG: '{query_text}' (Thread: {thread_id})")
+            logger.info(f"🔍 Buscando no RAG: '{query_text}' (Usuario: {thread_id})")
+            
+            from app.services.user_service import UserService
+            user_service = UserService()
+            active_trip = user_service.get_active_trip(thread_id)
+            
+            if not active_trip:
+                return "Você não está vinculado a nenhuma viagem ativa no momento."
             
             # Gerar embedding da query
             query_vector = np.array(self.embeddings.embed_query(query_text))
             
-            # Filtrar documentos do usuário E de usuários compartilhados
-            from app.services.trip_service import TripService
-            trip_svc = TripService()
-            shared_ids = trip_svc.get_shared_users(thread_id)
-            allowed_ids = [thread_id] + shared_ids
-            
+            # Filtrar documentos pelo trip_id (ou fallback para o próprio thread_id caso antigo)
             user_indices = [
                 i for i, doc in enumerate(self.documents) 
-                if doc["metadata"].get("thread_id") in allowed_ids
+                if doc["metadata"].get("trip_id") == active_trip or doc["metadata"].get("thread_id") == thread_id
             ]
             
             if not user_indices:
-                return "Nenhuma informação relevante encontrada nos seus documentos."
+                return "Nenhuma informação relevante encontrada nos documentos desta viagem."
                 
-            # Pegar os vetores do usuário
+            # Pegar os vetores filtrados
             user_vectors = self.vectors[user_indices]
             
             # Calcular similaridades
@@ -135,10 +137,14 @@ class RAGService:
             return f"Erro ao acessar documentos: {str(e)}"
 
     def list_user_documents(self, thread_id: str) -> List[str]:
-        """Lista nomes de arquivos enviados pelo usuário"""
+        """Lista nomes de arquivos enviados para a viagem atual do usuário"""
+        from app.services.user_service import UserService
+        user_service = UserService()
+        active_trip = user_service.get_active_trip(thread_id)
+        
         filenames = set([
             doc["metadata"].get("filename") 
             for doc in self.documents 
-            if doc["metadata"].get("thread_id") == thread_id
+            if doc["metadata"].get("trip_id") == active_trip or doc["metadata"].get("thread_id") == thread_id
         ])
-        return [f for f in filenames if f]
+        return list(f for f in filenames if f)

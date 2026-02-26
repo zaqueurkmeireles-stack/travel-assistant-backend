@@ -89,6 +89,34 @@ async def chat_endpoint(
     logger.info(f"📥 Nova mensagem de {request.user_id}: {request.message[:50]}...")
     
     try:
+        from app.services.user_service import UserService
+        user_service = UserService()
+        role = user_service.get_user_role(request.user_id)
+        
+        if role == "admin" and request.message.strip().lower().startswith("autorizar "):
+            parts = request.message.strip().split()
+            if len(parts) >= 3:
+                guest_id = parts[1]
+                trip_id = " ".join(parts[2:])
+                success = user_service.authorize_guest(request.user_id, guest_id, trip_id)
+                msg = f"✅ Contato {guest_id} autorizado para a viagem '{trip_id}'!" if success else "❌ Falha ao autorizar."
+                
+                # Fechar o loop
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                return ChatResponse(success=True, response=msg, user_id=request.user_id)
+            else:
+                msg = "⚠️ Formato incorreto. Use: autorizar <numero_whatsapp> <nome_da_viagem>"
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                return ChatResponse(success=True, response=msg, user_id=request.user_id)
+
+        if role == "unauthorized":
+            msg = "Olá! 👋 Sou o Seven Assistant Travel. Você ainda não está autorizado em nenhuma viagem.\nPeça para o administrador enviar o comando: autorizar " + request.user_id + " <nome_da_viagem>"
+            n8n = N8nService()
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+            return ChatResponse(success=True, response=msg, user_id=request.user_id)
+
         # Passamos o user_id como thread_id para o LangGraph manter a memória da conversa
         resposta_ia = agent.chat(user_input=request.message, thread_id=request.user_id)
         
@@ -170,6 +198,14 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
     logger.info(f"📥 Recebendo mídia ({request.filename}) de {request.user_id}")
     
     try:
+        from app.services.user_service import UserService
+        user_service = UserService()
+        role = user_service.get_user_role(request.user_id)
+        
+        if role == "unauthorized":
+            logger.warning(f"🚫 Mídia recusada. Usuário não autorizado: {request.user_id}")
+            return JSONResponse(status_code=403, content={"success": False, "message": "Não autorizado a enviar arquivos."})
+
         ingestor = DocumentIngestor()
         # Adaptar o payload para o formato esperado pelo ingestor
         data_payload = {
@@ -267,6 +303,14 @@ async def location_webhook(request: LocationRequest, agent: TravelAgent = Depend
     logger.info(f"📍 Geolocalização Proativa: {request.user_id} em {request.latitude}, {request.longitude}")
     
     try:
+        from app.services.user_service import UserService
+        user_service = UserService()
+        role = user_service.get_user_role(request.user_id)
+        
+        if role == "unauthorized":
+            logger.warning(f"🚫 Localização ignorada. Usuário não autorizado: {request.user_id}")
+            return {"success": False, "message": "Não autorizado"}
+
         # 1. Obter contexto Geográfico (Cidade/País/POI)
         from app.services.maps_service import GoogleMapsService
         maps = GoogleMapsService()

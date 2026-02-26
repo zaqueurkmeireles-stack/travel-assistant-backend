@@ -63,20 +63,28 @@ class DocumentIngestor:
             if not extracted_text:
                 extracted_text = str(parse_result)
             
-            # 4. Indexar no RAG
+            # 4. Registrar ou atualizar a Viagem com base no documento
+            trip = self.trip_svc.add_trip_from_doc(sender_number, parse_result)
+            
+            from app.services.user_service import UserService
+            user_service = UserService()
+            
+            if trip:
+                logger.info(f"📅 Viagem vinculada: {trip['destination']} em {trip['start_date']}")
+                user_service.set_active_trip(sender_number, trip["id"])
+                
+            active_trip = user_service.get_active_trip(sender_number)
+            
+            # 5. Indexar no RAG com o Trip ID
             metadata = {
                 "filename": filename,
                 "thread_id": sender_number,
+                "trip_id": active_trip,
                 "mimetype": mimetype,
                 "document_type": parse_result.get("document_type", "geral")
             }
             
             self.rag_svc.add_document(extracted_text, metadata)
-            
-            # 5. Registrar no TripService se houver dados de viagem
-            trip = self.trip_svc.add_trip_from_doc(sender_number, parse_result)
-            if trip:
-                logger.info(f"📅 Viagem vinculada: {trip['destination']} em {trip['start_date']}")
             
             logger.info(f"✨ Ingestão concluída com sucesso: {filename}")
             return {

@@ -32,11 +32,21 @@ class AgentState(TypedDict):
 # NÓS DO GRAFO
 # ============================================================
 
-def call_model(state: AgentState):
+def call_model(state: AgentState, config: dict = None):
     """Nó principal: Chama o GPT-4 com acesso às tools"""
     logger.info("🤖 Acionando OpenAI Agent...")
     
     messages = state["messages"]
+    
+    # Recupera o thread_id e injeta o contexto da viagem
+    thread_id = "unknown"
+    if config and "configurable" in config:
+        thread_id = config["configurable"].get("thread_id", "unknown")
+    
+    from app.services.user_service import UserService
+    user_service = UserService()
+    role = user_service.get_user_role(thread_id)
+    active_trip = user_service.get_active_trip(thread_id)
     
     llm = ChatOpenAI(
         model="gpt-4o-mini",
@@ -47,7 +57,12 @@ def call_model(state: AgentState):
     
     # Adicionar instrução de sistema
     from langchain_core.messages import SystemMessage
-    system_prompt = "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. Use query_travel_documents para consultar docs salvos. Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
+    base_prompt = "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. Use query_travel_documents para consultar docs salvos. Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
+    
+    context_prompt = f"\n\nContexto Atual:\n- ID Usuário: {thread_id}\n- Seu Papel na Viagem: {role}\n- Viagem Ativa (Trip ID): {active_trip if active_trip else 'Nenhuma viagem vinculada.'}\n"
+    context_prompt += "MUITO IMPORTANTE: O usuário pode não ser o dono da viagem, ele pode ser um convidado. A IA deve atender as demandas dessa Viagem Ativa específica."
+    
+    system_prompt = base_prompt + context_prompt
     
     messages_to_invoke = [SystemMessage(content=system_prompt)] + state["messages"]
     response = llm_with_tools.invoke(messages_to_invoke)
