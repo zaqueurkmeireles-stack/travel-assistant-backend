@@ -67,6 +67,42 @@ class TripService:
         logger.info(f"✨ Nova viagem agendada: {destination} em {start_date}")
         return new_trip
 
+    def register_data_plan(self, user_id: str, total_gb: float, duration_days: int):
+        """Registra um plano de dados para o usuário na viagem atual ou futura"""
+        # Simplificação: assume o plano para a viagem mais próxima
+        plan = {
+            "user_id": user_id,
+            "total_gb": total_gb,
+            "used_gb": 0.0,
+            "duration_days": duration_days,
+            "registered_at": datetime.now().isoformat(),
+            "last_screenshot_sync": None
+        }
+        
+        # Salva em um arquivo separado ou no trips.json (usaremos db_connectivity.json para separar responsabilidades)
+        conn_db = os.path.join(os.path.dirname(self.db_path), "connectivity.json")
+        data = {}
+        if os.path.exists(conn_db):
+            with open(conn_db, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        
+        data[user_id] = plan
+        with open(conn_db, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        
+        logger.info(f"📶 Plano de {total_gb}GB registrado para {user_id}")
+        return plan
+
+    def get_data_plan(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Recupera o plano de dados ativo do usuário"""
+        conn_db = os.path.join(os.path.dirname(self.db_path), "connectivity.json")
+        if not os.path.exists(conn_db):
+            return None
+            
+        with open(conn_db, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get(user_id)
+
     def get_trips_to_alert(self, today: datetime) -> List[Dict[str, Any]]:
         """Retorna viagens que precisam de alerta hoje e ainda não foram notificadas"""
         trips_to_notify = []
@@ -86,6 +122,9 @@ class TripService:
                 
                 if alert_type and alert_type not in trip.get("alerts_sent", []):
                     trip["pending_alert"] = alert_type
+                    # Lógica Extra: Se for D-1, verificar necessidade de mapas offline
+                    if alert_type == "D-1":
+                        trip["needs_offline_map_check"] = True
                     trips_to_notify.append(trip)
             except Exception as e:
                 logger.error(f"Erro ao processar data da viagem {trip['id']}: {e}")
@@ -101,3 +140,37 @@ class TripService:
                 trip["alerts_sent"].append(alert_type)
                 self._save_trips()
                 break
+    def get_shared_users(self, user_id: str) -> List[str]:
+        """Retorna outros usuários que compartilham viagens com este usuário"""
+        shared_users = []
+        user_trips = [t.get("confirmation_code") for t in self.trips if t["user_id"] == user_id and t.get("confirmation_code")]
+        
+        if not user_trips:
+            return []
+            
+        for trip in self.trips:
+            if trip["user_id"] != user_id and trip.get("confirmation_code") in user_trips:
+                # Verificar se o compartilhamento foi aceito (poderia ter um flag 'shared_with': [user_ids])
+                if user_id in trip.get("shared_with", []):
+                    shared_users.append(trip["user_id"])
+                    
+        return list(set(shared_users))
+
+    def request_trip_sharing(self, user_id: str, confirmation_code: str, partner_id: str):
+        """Registra uma solicitação ou aceite de compartilhamento"""
+        for trip in self.trips:
+            if trip["user_id"] == user_id and trip.get("confirmation_code") == confirmation_code:
+                if "shared_with" not in trip:
+                    trip["shared_with"] = []
+                if partner_id not in trip["shared_with"]:
+                    trip["shared_with"].append(partner_id)
+                    self._save_trips()
+                return True
+        return False
+
+    def find_potential_partner(self, user_id: str, confirmation_code: str) -> Optional[str]:
+        """Procura outro usuário com o mesmo código de reserva"""
+        for trip in self.trips:
+            if trip["user_id"] != user_id and trip.get("confirmation_code") == confirmation_code:
+                return trip["user_id"]
+        return None

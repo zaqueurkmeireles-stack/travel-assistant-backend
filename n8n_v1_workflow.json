@@ -1,0 +1,198 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-input",
+        "options": {}
+      },
+      "name": "Webhook Entrada WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.message.documentMessage || $json.body.message.imageMessage }}",
+              "operation": "notEmpty"
+            }
+          ]
+        }
+      },
+      "name": "É Mídia?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        350,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.message.locationMessage }}",
+              "operation": "notEmpty"
+            }
+          ]
+        }
+      },
+      "name": "É Localização?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        350,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wsdfsdf-travel-assistant-backend.nkfiyw.easypanel.host/api/webhook/media",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.body.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "name": "base64",
+              "value": "={{ $json.body.base64 }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.body.message.documentMessage.fileName || 'imagem.jpg' }}"
+            },
+            {
+              "name": "mimetype",
+              "value": "={{ $json.body.message.documentMessage.mimetype || $json.body.message.imageMessage.mimetype }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Enviar Mídia p/ IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        600,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wsdfsdf-travel-assistant-backend.nkfiyw.easypanel.host/api/webhook/location",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.body.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "name": "latitude",
+              "value": "={{ $json.body.message.locationMessage.degreesLatitude }}"
+            },
+            {
+              "name": "longitude",
+              "value": "={{ $json.body.message.locationMessage.degreesLongitude }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Enviar Localização p/ IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        600,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wsdfsdf-travel-assistant-backend.nkfiyw.easypanel.host/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.body.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message.conversation || $json.body.message.extendedTextMessage.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Enviar Texto p/ IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        600,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "É Mídia?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Mídia?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mídia p/ IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É Localização?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Localização?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Localização p/ IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Texto p/ IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

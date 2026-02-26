@@ -5,7 +5,7 @@ Gemini Service - Inteligência Alternativa para Debate e Robustez
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.config import settings
 from loguru import logger
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 class GeminiService:
     """Service para integração com Google Gemini (Segunda Opinião)"""
@@ -23,7 +23,7 @@ class GeminiService:
             self.llm = None
             logger.warning("⚠️ Chave do Gemini não configurada.")
             
-    def get_second_opinion(self, original_plan: str, real_tips: str) -> str:
+    def get_second_opinion(self, original_plan: str, real_tips: str) -> Optional[str]:
         """
         Analisa o roteiro principal e as dicas reais da internet 
         para sugerir melhorias práticas ou identificar problemas.
@@ -44,4 +44,4 @@ class GeminiService:
             return response.content
         except Exception as e:
             logger.error(f"Erro ao consultar Gemini: {e}")
-            return f"Erro na análise secundária: {str(e)}"
+            return None

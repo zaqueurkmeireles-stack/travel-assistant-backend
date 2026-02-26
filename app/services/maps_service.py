@@ -16,12 +16,12 @@ class GoogleMapsService:
         self.base_url = "https://maps.googleapis.com/maps/api"
         logger.info("✅ Google Maps Service inicializado")
     
-    def geocode(self, address: str) -> Optional[Dict]:
-        """Converte endereço em coordenadas"""
+    def reverse_geocode(self, lat: float, lng: float) -> str:
+        """Converte coordenadas em endereço ou nome de local"""
         try:
             url = f"{self.base_url}/geocode/json"
             params = {
-                "address": address,
+                "latlng": f"{lat},{lng}",
                 "key": self.api_key
             }
             
@@ -29,19 +29,12 @@ class GoogleMapsService:
             data = response.json()
             
             if data["status"] == "OK":
-                location = data["results"][0]["geometry"]["location"]
-                return {
-                    "lat": location["lat"],
-                    "lng": location["lng"],
-                    "formatted_address": data["results"][0]["formatted_address"]
-                }
-            else:
-                logger.warning(f"Geocode falhou: {data['status']}")
-                return None
+                return data["results"][0]["formatted_address"]
+            return "Localização desconhecida"
                 
         except Exception as e:
-            logger.error(f"Erro no geocode: {e}")
-            return None
+            logger.error(f"Erro no reverse_geocode: {e}")
+            return "Erro ao identificar local"
     
     def find_nearby_places(self, lat: float, lng: float, place_type: str = "restaurant", radius: int = 1500) -> List[Dict]:
         """Busca lugares próximos"""

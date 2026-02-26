@@ -11,6 +11,8 @@ from langgraph.prebuilt import ToolNode
 from app.agents.tools import ALL_TOOLS
 from app.config import settings
 from loguru import logger
+from app.services.n8n_service import N8nService
+from app.agents.tools import ALL_TOOLS, provide_visual_navigation_map
 
 # 🛡️ DEFESA: Versões do LangGraph para add_messages
 try:
@@ -45,14 +47,7 @@ def call_model(state: AgentState):
     
     # Adicionar instrução de sistema
     from langchain_core.messages import SystemMessage
-    system_prompt = (
-        "Você é o TravelCompanion AI, o melhor concierge de viagens do mundo.\n"
-        "Sua missão é ajudar o usuário e sua família com informações precisas e proativas.\n"
-        "Você tem acesso a documentos de viagem do usuário via ferramenta 'query_travel_documents'.\n"
-        "Sempre verifique os documentos se o usuário perguntar sobre suas reservas, voos, hotéis ou seguros.\n"
-        "Seja cordial, eficiente e econômico com os dados do usuário (prefira instruções em texto antes de sugerir mapas online).\n"
-        "Se o usuário enviar uma localização, use as ferramentas de mapas para orientá-lo."
-    )
+    system_prompt = "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. Use query_travel_documents para consultar docs salvos. Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
     
     messages_to_invoke = [SystemMessage(content=system_prompt)] + state["messages"]
     response = llm_with_tools.invoke(messages_to_invoke)
@@ -90,8 +85,10 @@ def expert_consensus_review(state: AgentState):
             try:
                 from app.services.gemini_service import GeminiService
                 gemini_svc = GeminiService()
-                gemini_opinion = gemini_svc.get_second_opinion(last_ai_message, user_query)
-                logger.info("✅ Opinião do Gemini obtida.")
+                gemini_res = gemini_svc.get_second_opinion(last_ai_message, user_query)
+                if gemini_res:
+                    gemini_opinion = gemini_res
+                    logger.info("✅ Opinião do Gemini obtida.")
             except Exception as e:
                 logger.error(f"Erro no Gemini: {e}")
 
@@ -100,12 +97,27 @@ def expert_consensus_review(state: AgentState):
             try:
                 from app.services.claude_service import ClaudeService
                 claude_svc = ClaudeService()
-                final_response = claude_svc.get_refined_answer(user_query, last_ai_message, gemini_opinion)
-                logger.info("✅ Veredito final do Claude obtido.")
+                refined_res = claude_svc.get_refined_answer(user_query, last_ai_message, gemini_opinion)
+                if refined_res:
+                    final_response = refined_res
+                    logger.info("✅ Veredito final do Claude obtido.")
             except Exception as e:
                 logger.error(f"Erro no Claude: {e}")
         elif gemini_opinion:
             final_response = f"{last_ai_message}\n\n---\n✨ **Revisão Técnica (Gemini):**\n{gemini_opinion}"
+
+        if not final_response or final_response == last_ai_message:
+            # Se não houve refinamento ou falhou, mantemos o original mas logamos/notificamos
+            if settings.ANTHROPIC_API_KEY and not final_response:
+                 logger.warning("⚠️ Claude falhou no refinamento. Notificando Admin...")
+                 n8n = N8nService()
+                 admin_num = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                 if admin_num:
+                     n8n.enviar_resposta_usuario(
+                         admin_num, 
+                         f"🚨 *ALERTA TRAVEL AI*\nO Claude 3.5 falhou por falta de créditos ou erro de API. Verifique sua conta Anthropic."
+                     )
+            final_response = last_ai_message
 
         return {"messages": [AIMessage(content=final_response)], "needs_gemini_review": False}
         
@@ -113,7 +125,7 @@ def expert_consensus_review(state: AgentState):
         logger.error(f"Erro no Expert Review: {e}")
         return {"messages": [], "needs_gemini_review": False}
 
-def route_after_agent(state: AgentState) -> Literal["tools", "gemini_review", "end"]:
+def route_after_agent(state: AgentState) -> Literal["tools", "expert_review", "end"]:
     """Roteamento dinâmico após o agente decidir"""
     messages = state["messages"]
     last_message = messages[-1]
@@ -138,7 +150,10 @@ def route_after_agent(state: AgentState) -> Literal["tools", "gemini_review", "e
 
 def create_agent_graph():
     """Compila o grafo do LangGraph definindo o fluxo exato"""
-    tool_node = ToolNode(ALL_TOOLS)
+    
+    # Atualiza ALL_TOOLS para incluir a nova ferramenta para o ToolNode
+    current_tools_for_node = list(ALL_TOOLS)
+    tool_node = ToolNode(current_tools_for_node)
     workflow = StateGraph(AgentState)
     
     workflow.add_node("agent", call_model)

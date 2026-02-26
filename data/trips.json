@@ -49,5 +49,57 @@
     "alerts_sent": [],
     "created_at": "2026-02-25T08:26:42.798613",
     "arrival_guide_sent": true
+  },
+  {
+    "id": "test_user_alerts_999_D7-Place_2026-03-05",
+    "user_id": "test_user_alerts_999",
+    "destination": "D7-Place",
+    "start_date": "2026-03-05",
+    "end_date": null,
+    "confirmation_code": null,
+    "alerts_sent": [
+      "D-7"
+    ],
+    "created_at": "2026-02-26T03:37:19.662267",
+    "pending_alert": "D-7"
+  },
+  {
+    "id": "test_user_alerts_999_D1-Place_2026-02-27",
+    "user_id": "test_user_alerts_999",
+    "destination": "D1-Place",
+    "start_date": "2026-02-27",
+    "end_date": null,
+    "confirmation_code": null,
+    "alerts_sent": [
+      "D-1"
+    ],
+    "created_at": "2026-02-26T03:37:19.663084",
+    "pending_alert": "D-1"
+  },
+  {
+    "id": "test_user_alerts_999_D0-Place_2026-02-26",
+    "user_id": "test_user_alerts_999",
+    "destination": "D0-Place",
+    "start_date": "2026-02-26",
+    "end_date": null,
+    "confirmation_code": null,
+    "alerts_sent": [
+      "D-0"
+    ],
+    "created_at": "2026-02-26T03:37:19.663893",
+    "pending_alert": "D-0"
+  },
+  {
+    "id": "5541988368783_Lisbon_2026-02-26",
+    "user_id": "5541988368783",
+    "destination": "Lisbon",
+    "start_date": "2026-02-26",
+    "end_date": "2026-03-05",
+    "confirmation_code": "LIS777",
+    "alerts_sent": [
+      "D-0"
+    ],
+    "created_at": "2026-02-26T05:00:00",
+    "pending_alert": "D-0"
   }
 ]

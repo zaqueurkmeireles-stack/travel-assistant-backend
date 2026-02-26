@@ -100,10 +100,15 @@ class RAGService:
             # Gerar embedding da query
             query_vector = np.array(self.embeddings.embed_query(query_text))
             
-            # Filtrar documentos do usuário
+            # Filtrar documentos do usuário E de usuários compartilhados
+            from app.services.trip_service import TripService
+            trip_svc = TripService()
+            shared_ids = trip_svc.get_shared_users(thread_id)
+            allowed_ids = [thread_id] + shared_ids
+            
             user_indices = [
                 i for i, doc in enumerate(self.documents) 
-                if doc["metadata"].get("thread_id") == thread_id
+                if doc["metadata"].get("thread_id") in allowed_ids
             ]
             
             if not user_indices:

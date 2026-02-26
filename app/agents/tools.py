@@ -202,6 +202,76 @@ def get_internet_options(destination: str) -> str:
     logger.info(f"📶 Tool: Opções de internet para {destination}")
     return get_connectivity_svc().get_e_sim_recommendations(destination)
 
+@tool
+def register_data_plan(total_gb: float, duration_days: int, config: RunnableConfig) -> str:
+    """
+    Registra um plano de dados (SIM/eSIM) para monitoramento.
+    Use quando o usuário disser que comprou um chip ou tiver um plano de X GB por Y dias.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"📶 Tool: Registrando plano de {total_gb}GB para {user_id}")
+    plan = get_rag_svc().trip_svc.register_data_plan(user_id, total_gb, duration_days)
+    return f"Perfeito! Registrei seu plano de {total_gb}GB para {duration_days} dias. Vou monitorar seu consumo e te aviso se baixar de 10%!"
+
+@tool
+def get_data_usage_status(config: RunnableConfig) -> str:
+    """
+    Verifica o status atual do consumo de dados (Medidor Virtual).
+    Use quando o usuário perguntar 'Quanto de internet eu ainda tenho?' ou similar.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"📊 Tool: Checando consumo de dados para {user_id}")
+    return get_connectivity_svc().estimate_data_usage(user_id)
+
+@tool
+def analyze_data_usage_screenshot(image_path: str, config: RunnableConfig) -> str:
+    """
+    Analisa um print da tela de consumo de dados (eSIM/Chip) para sincronizar o medidor real.
+    Use quando o usuário enviar uma imagem das configurações de dados do celular.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"👁️ Tool: Analisando print de consumo para {user_id}")
+    return get_connectivity_svc().analyze_usage_screenshot(user_id, image_path)
+
+@tool
+def provide_visual_navigation_map(place_description: str, config: RunnableConfig) -> str:
+    """
+    Gera um mapa visual e link de navegação para um local específico (ex: 'Esteira de Bagagem 4', 'Hertz Car Rental Terminal 1').
+    Use quando o usuário estiver perdido ou precisar chegar a um ponto específico da viagem.
+    """
+    from app.services.maps_service import GoogleMapsService
+    maps = GoogleMapsService()
+    
+    # Tentar identificar se temos localização atual no contexto ou se a IA deduzir
+    # Por segurança, geramos o link de busca que funciona bem no mobile
+    link = maps.get_location_map_link(place_description)
+    
+    return (
+        f"🗺️ **Mapa de Navegação Visual para: {place_description}**\n\n"
+        f"Clique no link abaixo para abrir o mapa interativo e seguir as instruções passo a passo no seu celular:\n"
+        f"🔗 [ABRIR MAPA NO GOOGLE MAPS]({link})\n\n"
+        f"*Dica: Use o modo 'Caminhada' para navegar dentro do terminal.*"
+    )
+
+@tool
+def manage_trip_sharing(action: str, partner_whatsapp: str, confirmation_code: str, config: RunnableConfig) -> str:
+    """
+    Gerencia o compartilhamento de viagens entre usuários.
+    Ações: 'request' (enviar convite), 'accept' (aceitar convite).
+    Use quando detectar que dois usuários têm o mesmo código de reserva e perguntar se querem compartilhar.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.trip_service import TripService
+    trip_svc = TripService()
+    
+    if action == "accept":
+        trip_svc.request_trip_sharing(user_id, confirmation_code, partner_whatsapp)
+        # Recíproco
+        trip_svc.request_trip_sharing(partner_whatsapp, confirmation_code, user_id)
+        return f"✅ Viagem compartilhada com sucesso! Agora você e {partner_whatsapp} podem acessar os documentos um do outro para esta viagem."
+    
+    return f"Solicitação enviada. Aguardando {partner_whatsapp} aceitar."
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -215,5 +285,10 @@ ALL_TOOLS = [
     search_flights,
     search_hotels,
     convert_currency,
-    get_internet_options
+    get_internet_options,
+    register_data_plan,
+    get_data_usage_status,
+    analyze_data_usage_screenshot,
+    provide_visual_navigation_map,
+    manage_trip_sharing
 ]

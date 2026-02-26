@@ -23,7 +23,7 @@ class ClaudeService:
             self.llm = None
             logger.warning("⚠️ Chave do Claude não configurada.")
             
-    def get_refined_answer(self, user_query: str, original_plan: str, gemini_opinion: str = "") -> str:
+    def get_refined_answer(self, user_query: str, original_plan: str, gemini_opinion: str = "") -> Optional[str]:
         """
         Recebe o roteiro original e a opinião do Gemini (se houver) 
         para gerar um veredito final ou refinamento de alto nível.
@@ -50,4 +50,4 @@ class ClaudeService:
             return response.content
         except Exception as e:
             logger.error(f"Erro ao consultar Claude: {e}")
-            return f"Erro no refinamento Claude: {str(e)}"
+            return None
