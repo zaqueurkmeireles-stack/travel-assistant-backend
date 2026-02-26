@@ -92,12 +92,16 @@ async def chat_endpoint(
         from app.services.user_service import UserService
         user_service = UserService()
         role = user_service.get_user_role(request.user_id)
+        # Garantir que o comando "autorizar" funcione sempre
+        message_clean = request.message.strip()
         
-        if role == "admin" and request.message.strip().lower().startswith("autorizar "):
-            parts = request.message.strip().split()
+        if role == "admin" and message_clean.lower().startswith("autorizar "):
+            parts = message_clean.split(maxsplit=2) # Split apenas nos primeiros 2 espaços
             if len(parts) >= 3:
                 guest_id = parts[1]
-                trip_id = " ".join(parts[2:])
+                # Limpar as tags se o usuario digitar <Viagem>
+                trip_id = parts[2].replace("<", "").replace(">", "").strip()
+                
                 success = user_service.authorize_guest(request.user_id, guest_id, trip_id)
                 msg = f"✅ Contato {guest_id} autorizado para a viagem '{trip_id}'!" if success else "❌ Falha ao autorizar."
                 
