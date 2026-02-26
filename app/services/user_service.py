@@ -128,6 +128,47 @@ class UserService:
         if not self.users[uid]["active_trip_id"]:
             self.users[uid]["active_trip_id"] = trip_id
             
+        # Limpa da fila de espera do Admin
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        pending = self.users.get(admin_number, {}).get("pending_requests", {})
+        if uid in pending:
+            del pending[uid]
+            self.users[admin_number]["pending_requests"] = pending
+            
         self._save_users()
         logger.info(f"✅ Usuário {uid} autorizado para a viagem {trip_id} por {admin_id}")
         return True
+
+    def register_access_request(self, guest_id: str) -> bool:
+        """Registra uma tentativa de acesso não autorizada. Retorna True se o admin deve ser notificado agora (throttle)."""
+        uid = self.normalize_phone(guest_id)
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        
+        if not admin_number or admin_number not in self.users:
+            return False
+            
+        self._ensure_admin()
+        
+        pending_requests = self.users[admin_number].setdefault("pending_requests", {})
+        last_request = pending_requests.get(uid)
+        
+        now = datetime.now()
+        
+        # Se for o primeiro request ou já se passaram mais de 10 minutos desde o último, avise o admin
+        should_notify = False
+        if not last_request:
+            should_notify = True
+        else:
+            try:
+                last_time = datetime.fromisoformat(last_request)
+                if (now - last_time).total_seconds() > 600: # 10 minutos
+                    should_notify = True
+            except:
+                should_notify = True
+                
+        # Atualiza a data da última tentativa sempre
+        pending_requests[uid] = now.isoformat()
+        self.users[admin_number]["pending_requests"] = pending_requests
+        self._save_users()
+        
+        return should_notify

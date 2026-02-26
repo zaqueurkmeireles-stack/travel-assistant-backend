@@ -95,31 +95,71 @@ async def chat_endpoint(
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
         
-        if role == "admin" and message_clean.lower().startswith("autorizar "):
+        if role == "admin" and message_clean.lower().startswith("sim "):
+            parts = message_clean.split(maxsplit=1)
+            if len(parts) >= 2:
+                guest_id = parts[1].replace("+", "").strip()
+                active_trip = user_service.get_active_trip(request.user_id)
+                success = False
+                
+                if active_trip:
+                    success = user_service.authorize_guest(request.user_id, guest_id, active_trip)
+                
+                if success:
+                    msg_admin = f"✅ Contato {guest_id} autorizado para a sua viagem ativa '{active_trip}'!"
+                    msg_guest = f"🎉 Olá! O Administrador acabou de liberar o seu acesso para a viagem '{active_trip}'.\nEu sou o Seven Assistant Travel. Me envie os documentos (passagens, reservas) para começarmos!"
+                    
+                    n8n = N8nService()
+                    background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
+                    background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
+                    return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
+                else:
+                    msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa (RAG) cadastrada?"
+                    n8n = N8nService()
+                    background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                    return ChatResponse(success=True, response=msg, user_id=request.user_id)
+            else:
+                msg = "⚠️ Formato incorreto. Use: sim 554199999999"
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                
+        # Manter compatibilidade do comando antigo completo
+        elif role == "admin" and message_clean.lower().startswith("autorizar "):
             parts = message_clean.split(maxsplit=2) # Split apenas nos primeiros 2 espaços
             if len(parts) >= 3:
                 guest_id = parts[1]
-                # Limpar as tags se o usuario digitar <Viagem>
                 trip_id = parts[2].replace("<", "").replace(">", "").strip()
-                
                 success = user_service.authorize_guest(request.user_id, guest_id, trip_id)
                 msg = f"✅ Contato {guest_id} autorizado para a viagem '{trip_id}'!" if success else "❌ Falha ao autorizar."
                 
-                # Fechar o loop
                 n8n = N8nService()
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
             else:
-                msg = "⚠️ Formato incorreto. Use: autorizar <numero_whatsapp> <nome_da_viagem>"
+                msg = "⚠️ Formato incorreto. Use: sim <numero> ou autorizar <numero> <viagem>"
                 n8n = N8nService()
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
 
         if role == "unauthorized":
-            msg = "Olá! 👋 Sou o Seven Assistant Travel. Você ainda não está autorizado em nenhuma viagem.\nPeça para o administrador enviar o comando: autorizar " + request.user_id + " <nome_da_viagem>"
+            should_notify_admin = user_service.register_access_request(request.user_id)
             n8n = N8nService()
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
-            return ChatResponse(success=True, response=msg, user_id=request.user_id)
+            
+            # Msg para o convidado
+            guest_msg = "Olá! 👋 Sou o Seven Assistant Travel, o assistente virtual da família.\nVocê ainda não tem acesso à minha base.\n⏳ *Acabei de enviar uma solicitação para o Administrador.* Aguarde a liberação dele!"
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
+            
+            # Mg para o Admin se passou no Throttle
+            if should_notify_admin:
+                from app.config import settings
+                admin_number = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                if admin_number:
+                    admin_msg = f"⚠️ *Pedido de Acesso!*\nO WhatsApp `{request.user_id}` enviou uma mensagem pedindo para usar o robô.\n\nSe ele for membro da sua viagem atual, responda a esta mensagem exatamente assim:\n`sim {request.user_id}`"
+                    background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
+                    logger.info(f"🔔 Admin notificado sobre a tentativa de {request.user_id}")
+            
+            return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
 
         # Passamos o user_id como thread_id para o LangGraph manter a memória da conversa
         resposta_ia = agent.chat(user_input=request.message, thread_id=request.user_id)
