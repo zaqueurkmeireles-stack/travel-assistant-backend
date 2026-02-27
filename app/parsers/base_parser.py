@@ -36,7 +36,7 @@ class BaseParser(ABC):
             return ""
 
     def extract_text_from_pdf(self, file_content: bytes) -> str:
-        """Extrai texto de um PDF (tenta texto nativo primeiro)"""
+        """Extrai texto de um PDF (tenta texto nativo primeiro, depois OCR)"""
         try:
             pdf_file = io.BytesIO(file_content)
             pdf_reader = PyPDF2.PdfReader(pdf_file)
@@ -47,12 +47,27 @@ class BaseParser(ABC):
                 if extracted:
                     text += extracted + "\n"
             
-            # Se o PDF for só uma imagem escaneada, o texto nativo virá vazio
+            # Se o PDF for só uma imagem escaneada (boarding pass etc), OCR real
             if len(text.strip()) < 20:
-                logger.info("PDF parece ser escaneado. Tentando OCR (em breve via conversão de página)...")
-                # Nota: Para OCR completo em PDF, precisaríamos do pdf2image. 
-                # Por enquanto, focamos em imagens diretas.
-                
+                logger.info("📷 PDF parece ser baseado em imagem (ex: boarding pass). Iniciando OCR via pdf2image...")
+                try:
+                    from pdf2image import convert_from_bytes
+                    images = convert_from_bytes(file_content, dpi=200)
+                    ocr_text = ""
+                    for img in images:
+                        page_text = pytesseract.image_to_string(img, lang='por+eng')
+                        ocr_text += page_text + "\n"
+                    
+                    if ocr_text.strip():
+                        logger.info(f"✅ OCR concluído: {len(ocr_text)} caracteres extraídos de {len(images)} página(s)")
+                        return ocr_text.strip()
+                    else:
+                        logger.warning("⚠️ OCR não extraiu texto. PDF pode ser muito complexo ou corrompido.")
+                except ImportError:
+                    logger.error("❌ pdf2image não instalado. Adicione 'pdf2image' ao requirements.txt")
+                except Exception as ocr_err:
+                    logger.error(f"❌ Erro no OCR do PDF: {ocr_err}")
+            
             logger.debug(f"Texto extraído do PDF: {len(text)} caracteres")
             return text.strip()
             
