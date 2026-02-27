@@ -33,7 +33,7 @@ class DocumentParser(BaseParser):
         result = self.openai_svc.analyze_document(text, document_type)
         result["document_type"] = document_type
         result["filename"] = filename
-        result["raw_text"] = text[:500]
+        result["raw_text"] = text
         
         logger.info("✅ Documento parseado com sucesso")
         return result
