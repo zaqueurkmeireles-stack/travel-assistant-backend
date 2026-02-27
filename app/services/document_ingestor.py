@@ -37,6 +37,15 @@ class DocumentIngestor:
             filename = target.get("fileName", "arquivo_recebido")
             mimetype = target.get("mimetype", "")
             
+            # Garantir que o arquivo tenha extensão baseada no mimetype (WhatsApp às vezes omite)
+            if mimetype == "application/pdf" and not filename.lower().endswith(".pdf"):
+                filename += ".pdf"
+                logger.info(f"📎 Extensão .pdf adicionada automaticamente: {filename}")
+            elif mimetype in ["image/jpeg", "image/jpg"] and not filename.lower().endswith((".jpg", ".jpeg")):
+                filename += ".jpg"
+            elif mimetype == "image/png" and not filename.lower().endswith(".png"):
+                filename += ".png"
+            
             # 2. Obter o conteúdo do arquivo
             # No Evolution API, a mídia pode vir como base64 ou URL dependendo da config.
             # Se vier base64 no campo 'base64':

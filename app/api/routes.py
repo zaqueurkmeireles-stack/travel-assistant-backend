@@ -95,31 +95,40 @@ async def chat_endpoint(
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
         
-        if role == "admin" and message_clean.lower().startswith("sim "):
-            parts = message_clean.split(maxsplit=1)
-            if len(parts) >= 2:
-                guest_id = parts[1].replace("+", "").strip()
-                active_trip = user_service.get_active_trip(request.user_id)
-                success = False
+        if role == "admin" and (message_clean.lower() in ["ok", "sim"] or message_clean.lower().startswith("sim ")):
+            if message_clean.lower() in ["ok", "sim"]:
+                # Pega o último pedido pendente
+                admin_user = user_service.get_user(request.user_id)
+                pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
                 
-                if active_trip:
-                    success = user_service.authorize_guest(request.user_id, guest_id, active_trip)
-                
-                if success:
-                    msg_admin = f"✅ Contato {guest_id} autorizado para a sua viagem ativa '{active_trip}'!"
-                    msg_guest = f"🎉 Olá! O Administrador acabou de liberar o seu acesso para a viagem '{active_trip}'.\nEu sou o Seven Assistant Travel. Me envie os documentos (passagens, reservas) para começarmos!"
-                    
-                    n8n = N8nService()
-                    background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
-                    background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
-                    return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
-                else:
-                    msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa (RAG) cadastrada?"
+                if not pending_requests:
+                    msg = "❌ Não há pedidos de acesso pendentes no momento."
                     n8n = N8nService()
                     background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                     return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                
+                # Pega o pedido mais recente (ordenando pelos timestamps ISO)
+                guest_id = sorted(pending_requests.items(), key=lambda x: x[1], reverse=True)[0][0]
             else:
-                msg = "⚠️ Formato incorreto. Use: sim 554199999999"
+                parts = message_clean.split(maxsplit=1)
+                guest_id = parts[1].replace("+", "").strip()
+
+            active_trip = user_service.get_active_trip(request.user_id)
+            success = False
+            
+            if active_trip:
+                success = user_service.authorize_guest(request.user_id, guest_id, active_trip)
+            
+            if success:
+                msg_admin = f"✅ Contato {guest_id} autorizado para a sua viagem ativa '{active_trip}'!"
+                msg_guest = f"🎉 Olá! O Administrador acabou de liberar o seu acesso para a viagem '{active_trip}'.\nEu sou o Seven Assistant Travel. Me envie os documentos (passagens, reservas) para começarmos!"
+                
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
+                return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
+            else:
+                msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa (RAG) cadastrada?"
                 n8n = N8nService()
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
