@@ -95,6 +95,33 @@ async def chat_endpoint(
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
         
+        # --- NOVO: Lógica de Confirmação de Vinculação Automática (SIM/NÃO) ---
+        pending_link = user_service.get_pending_trip_link(request.user_id)
+        if pending_link:
+            msg_upper = message_clean.upper()
+            if msg_upper in ["SIM", "S", "YES", "OK", "CONFIRMAR"]:
+                host_id = pending_link["host_user_id"]
+                trip_id = pending_link["trip_id"]
+                dest = pending_link["destination"]
+                
+                # Efetiva a vinculação e autorização
+                user_service.authorize_guest(host_id, request.user_id, trip_id)
+                user_service.set_active_trip(request.user_id, trip_id)
+                user_service.clear_pending_trip_link(request.user_id)
+                
+                resp = f"✅ *Vinculação Confirmada!*\nAgora você e o Administrador compartilham o planejamento para *{dest}*.\n\nQualquer documento que um de vocês enviar será memorizado para ambos. Como posso ajudar com a viagem hoje?"
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
+                return ChatResponse(success=True, response=resp, user_id=request.user_id)
+            
+            elif msg_upper in ["NÃO", "NAO", "N", "NO", "RECUSAR"]:
+                user_service.clear_pending_trip_link(request.user_id)
+                resp = "Entendido. Mantive seu planejamento separado e privado. Para qualquer dúvida, estou à disposição!"
+                n8n = N8nService()
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
+                return ChatResponse(success=True, response=resp, user_id=request.user_id)
+        # --------------------------------------------------------------------
+
         if role == "admin" and (message_clean.lower() in ["ok", "sim"] or message_clean.lower().startswith("sim ")):
             if message_clean.lower() in ["ok", "sim"]:
                 # Pega o último pedido pendente

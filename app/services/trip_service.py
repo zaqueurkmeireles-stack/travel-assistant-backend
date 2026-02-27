@@ -174,3 +174,31 @@ class TripService:
             if trip["user_id"] != user_id and trip.get("confirmation_code") == confirmation_code:
                 return trip["user_id"]
         return None
+
+    def find_similar_trips(self, exclude_user_id: str, destination: str, start_date: str) -> Optional[Dict[str, Any]]:
+        """Busca viagens de outros usuários com mesmo destino e data próxima (±3 dias).
+        Retorna a trip e o user_id do dono caso encontre match."""
+        if not destination or not start_date:
+            return None
+        try:
+            from datetime import timedelta
+            target_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+        dest_lower = destination.lower().strip()
+        for trip in self.trips:
+            if trip["user_id"] == exclude_user_id:
+                continue
+            try:
+                trip_dest = trip.get("destination", "").lower().strip()
+                trip_date = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                date_diff = abs((target_date - trip_date).days)
+                # Match se destino contém pelo menos 4 chars em comum e data com diferença <= 3 dias
+                dest_match = dest_lower[:4] in trip_dest or trip_dest[:4] in dest_lower
+                if dest_match and date_diff <= 3:
+                    logger.info(f"🔗 Viagem similar encontrada: {trip['id']} (diff={date_diff} dias)")
+                    return {"trip": trip, "host_user_id": trip["user_id"]}
+            except Exception:
+                continue
+        return None

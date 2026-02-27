@@ -80,10 +80,35 @@ async def receive_whatsapp_media(request: Request):
         # Ingestão no RAG
         result = get_ingestor().ingest_from_webhook(data)
         
+        sender_number = data.get("key", {}).get("remoteJid", "").split("@")[0] or data.get("sender", "unknown")
+        
         if result.get("success"):
-            sender_number = data.get("key", {}).get("remoteJid", "").split("@")[0] or data.get("sender", "unknown")
             msg_confirmacao = f"✅ Recebi seu documento: *{result['filename']}*.\nJá memorizei os detalhes e você pode me perguntar sobre ele a qualquer momento!"
             n8n_service.enviar_resposta_usuario(sender_number, msg_confirmacao)
+            
+            # Se detectou viagem similar de outro usuário → propor vinculação
+            trip_match = result.get("trip_match")
+            if trip_match:
+                from app.services.user_service import UserService
+                user_svc = UserService()
+                user_svc.set_pending_trip_link(
+                    guest_id=sender_number,
+                    host_user_id=trip_match["host_user_id"],
+                    trip_id=trip_match["trip_id"],
+                    destination=trip_match["destination"],
+                    start_date=trip_match["start_date"]
+                )
+                msg_link = (
+                    f"✈️ Ei! Vi que você vai para *{trip_match['destination']}* "
+                    f"em *{trip_match['start_date']}* — "
+                    f"igualzinho ao dono desta viagem! Parece que vocês estão no mesmo roteiro 😊\n\n"
+                    f"Quer que eu vincule seus documentos ao planejamento da viagem para que "
+                    f"todos tenham acesso às informações completas?\n\n"
+                    f"Responda *SIM* para confirmar ou *NÃO* para manter separado."
+                )
+                n8n_service.enviar_resposta_usuario(sender_number, msg_link)
+                logger.info(f"💬 Proposta de vinculação enviada para {sender_number}")
+            
             return {"status": "success", "details": result}
         else:
             return {"status": "error", "message": result.get("error")}
@@ -91,6 +116,7 @@ async def receive_whatsapp_media(request: Request):
     except Exception as e:
         logger.error(f"❌ Erro ao processar webhook de mídia: {e}")
         return {"status": "error", "message": str(e)}
+
 
 # =================================================================
 # ROTAS ORIGINAIS MANTIDAS

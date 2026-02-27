@@ -172,3 +172,36 @@ class UserService:
         self._save_users()
         
         return should_notify
+
+    def set_pending_trip_link(self, guest_id: str, host_user_id: str, trip_id: str, destination: str, start_date: str):
+        """Salva uma proposta de vinculação de viagem aguardando confirmação do guest."""
+        uid = self.normalize_phone(guest_id)
+        if uid not in self.users:
+            self.users[uid] = {
+                "role": "guest",
+                "authorized_trips": [],
+                "active_trip_id": None,
+                "created_at": datetime.now().isoformat()
+            }
+        self.users[uid]["pending_trip_link"] = {
+            "host_user_id": self.normalize_phone(host_user_id),
+            "trip_id": trip_id,
+            "destination": destination,
+            "start_date": start_date,
+            "created_at": datetime.now().isoformat()
+        }
+        self._save_users()
+        logger.info(f"⏳ Proposta de vinculação salva para {uid} → trip {trip_id}")
+
+    def get_pending_trip_link(self, user_id: str) -> dict:
+        """Retorna a proposta de vinculação pendente para o usuário, se houver."""
+        uid = self.normalize_phone(user_id)
+        return self.users.get(uid, {}).get("pending_trip_link")
+
+    def clear_pending_trip_link(self, user_id: str):
+        """Remove a proposta de vinculação após o usuário responder."""
+        uid = self.normalize_phone(user_id)
+        if uid in self.users and "pending_trip_link" in self.users[uid]:
+            del self.users[uid]["pending_trip_link"]
+            self._save_users()
+

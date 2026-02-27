@@ -101,14 +101,33 @@ class DocumentIngestor:
             
             self.rag_svc.add_document(extracted_text, metadata)
             
+            # 7. Detectar se outro usuário tem viagem similar (mesma dest + data ±3 dias)
+            trip_match = None
+            if trip:
+                similar = self.trip_svc.find_similar_trips(
+                    exclude_user_id=sender_number,
+                    destination=trip.get("destination", ""),
+                    start_date=trip.get("start_date", "")
+                )
+                if similar:
+                    logger.info(f"🔗 Viagem similar detectada! Host: {similar['host_user_id']}")
+                    trip_match = {
+                        "host_user_id": similar["host_user_id"],
+                        "trip_id": similar["trip"]["id"],
+                        "destination": similar["trip"]["destination"],
+                        "start_date": similar["trip"]["start_date"]
+                    }
+            
             logger.info(f"✨ Ingestão concluída com sucesso: {filename}")
             return {
                 "success": True, 
                 "filename": filename, 
                 "document_type": metadata["document_type"],
-                "text_preview": extracted_text[:100]
+                "text_preview": extracted_text[:100],
+                "trip_match": trip_match  # None se não houver viagem similar
             }
             
         except Exception as e:
             logger.error(f"❌ Erro na ingestão do documento: {e}")
             return {"success": False, "error": str(e)}
+
