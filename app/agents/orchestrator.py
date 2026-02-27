@@ -70,6 +70,29 @@ def call_model(state: AgentState, config: dict = None):
     context_prompt = f"\n\nContexto Atual:\n- ID Usuário: {thread_id}\n- Seu Papel na Viagem: {role}\n- Viagem Ativa (Trip ID): {active_trip if active_trip else 'Nenhuma viagem vinculada.'}\n"
     context_prompt += "MUITO IMPORTANTE: O usuário pode não ser o dono da viagem, ele pode ser um convidado. A IA deve atender as demandas dessa Viagem Ativa específica."
     
+    # 🔑 INJEÇÃO DIRETA DO RAG: busca e injeta o contexto de documentos SEMPRE,
+    # sem depender do LLM chamar a tool (que pode ser ignorada)
+    try:
+        from app.services.rag_service import RAGService
+        rag = RAGService()
+        # Extrai a mensagem mais recente do usuário para busca contextual
+        last_user_message = ""
+        from langchain_core.messages import HumanMessage
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage) and msg.content:
+                last_user_message = msg.content
+                break
+        
+        if last_user_message and rag.documents:
+            rag_context = rag.query(last_user_message, thread_id, k=4)
+            if rag_context and "ainda não enviou" not in rag_context and "Nenhuma informação" not in rag_context:
+                context_prompt += f"\n\n📄 DOCUMENTOS DA VIAGEM (use estas informações para responder):\n{rag_context}"
+                logger.info(f"✅ RAG injetado no prompt diretamente ({len(rag_context)} chars)")
+            else:
+                logger.info("ℹ️ RAG não retornou documentos relevantes para esta consulta.")
+    except Exception as rag_err:
+        logger.error(f"❌ Erro ao injetar RAG no prompt: {rag_err}")
+    
     system_prompt = base_prompt + context_prompt
     
     messages_to_invoke = [SystemMessage(content=system_prompt)] + state["messages"]
