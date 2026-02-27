@@ -71,6 +71,8 @@ class OpenAIService:
                     "- 'end_date': Data de término/retorno no formato YYYY-MM-DD.\n"
                     "- 'travelers': Lista de nomes de viajantes.\n"
                     "- 'confirmation_code': Código de reserva ou localizador.\n"
+                    "- 'terminal': Terminal de embarque/desembarque (se disponível).\n"
+                    "- 'checkin_counter': Guichê ou balcão de check-in (se disponível).\n"
                     "- 'summary': Breve resumo do documento."
                 )
             },

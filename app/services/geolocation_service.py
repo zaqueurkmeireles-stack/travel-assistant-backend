@@ -51,8 +51,12 @@ class GeolocationService:
         if distance < 50:
             logger.info(f"🛬 Usuário {user_id} detectado em {dest_name}!")
             active_trip["arrival_guide_sent"] = True
+            
+            # Tentar marcar hotel como "dia de chegada" para RAG
             self.trip_svc._save_trips()
-            return self._generate_arrival_guide(dest_name, user_id)
+            
+            guide_msg = self._generate_intelligent_arrival_guide(dest_name, user_id)
+            return guide_msg
             
         return None
 
@@ -66,13 +70,26 @@ class GeolocationService:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
         return R * c
 
-    def _generate_arrival_guide(self, destination: str, user_id: str) -> str:
-        """Gera guia de 'Boas-vindas' com informações úteis de baixo consumo de dados"""
-        # Aqui poderíamos chamar o Agente ou usar um template rico
-        return (
-            f"📍 *Bem-vindo a {destination}!* 🛬\n\n"
-            "Detectei que você acabou de chegar. Aqui estão algumas dicas rápidas para facilitar seu desembarque:\n\n"
-            "🎫 *Transporte:* O aeroporto possui conexão direta via trem (S-Bahn) e táxis oficiais no Terminal 1.\n"
-            "📶 *Dica de Dados:* Evite baixar mapas grandes agora. Se precisar de direções, me peça 'instruções em texto' para economizar bateria e roaming.\n"
-            "🏨 *Seu Hotel:* Lembre-se que você tem uma reserva no *Steigenberger Icon*. Quer que eu te dê o endereço exato?"
+    def _generate_intelligent_arrival_guide(self, destination: str, user_id: str) -> str:
+        """Gera guia de 'Boas-vindas' proativo usando IA e documentos do RAG"""
+        from app.agents.orchestrator import TravelAgent
+        agent = TravelAgent()
+        
+        prompt = (
+            f"O usuário acabou de chegar em {destination}. "
+            f"Analise os documentos dele no RAG (voos, hotéis, aluguel de carro) e gere um guia de chegada CURTO e EXTREMAMENTE ÚTIL.\n\n"
+            "Inclua se encontrar:\n"
+            "- Nome da locadora de veículos e onde fica o guichê (se houver aluguel).\n"
+            "- Endereço do hotel e se o check-in já está disponível.\n"
+            "- Como sair do aeroporto (Dica rápida de transporte).\n"
+            "- Pergunte se ele quer que você salve um MAPA OFFLINE para economizar dados ou se prefere direções por texto.\n\n"
+            "Seja carinhoso e proativo, como um guia especializado local."
         )
+        
+        try:
+            # Chamada direta ao agente para gerar o guia proativo
+            guide = agent.chat(user_input=f"[SISTEMA: GUIA DE CHEGADA EM {destination}] {prompt}", thread_id=user_id)
+            return guide
+        except Exception as e:
+            logger.error(f"Erro ao gerar guia inteligente: {e}")
+            return f"📍 *Bem-vindo a {destination}!* 🛬\n\nQue bom que você chegou! Como posso te ajudar com os primeiros passos da sua viagem?"

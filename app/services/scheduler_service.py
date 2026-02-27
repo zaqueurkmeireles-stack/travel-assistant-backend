@@ -89,13 +89,18 @@ class SchedulerService:
         
         # Criar prompt contextual para a IA gerar o alerta
         prompt = (
-            f"Você é um Guia de Viagem VIP. O usuário {user_id} tem uma viagem para {destination} "
-            f"em {trip['start_date']}. Hoje é o alerta tipo {alert_type}.\n"
-            f"Consulte os documentos dele no RAG se necessário e gere uma mensagem de WhatsApp "
-            f"EXTREMAMENTE útil, carinhosa e proativa. "
-            f"Se for D-7, mencione vistos ou documentos se houver no RAG. "
-            f"Se for D-1, lembre do check-in. "
-            f"Se for D-0, dê as boas vindas e mencione o clima."
+            f"Você é o *Seven Assistant Travel*, o melhor concierge de viagens do mundo. "
+            f"O usuário {user_id} tem uma viagem para {destination} em {trip['start_date']}.\n"
+            f"Hoje estamos enviando o alerta tipo: **{alert_type}**.\n\n"
+            f"Sua missão é gerar uma mensagem de WhatsApp extremamente útil, carinhosa e proativa baseada nos documentos dele no RAG.\n\n"
+            "DIRETRIZES POR TIPO:\n"
+            "- **D-7 (Uma semana antes)**: Anime o usuário! Mencione se falta algum documento (gap analysis). "
+            "Pesquise se o destino (ou paradas intermediárias como Portugal/Europa) exige vistos/ETIAS e avise proativamente.\n"
+            "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN. "
+            "Dê os CÓDIGOS DE RESERVA (localizadores) de todos os viajantes que encontrar.\n"
+            "- **D-0 (Dia da Viagem)**: Comemore! 'Seu dia chegou!'. Informe o TERMINAL e o GUICHÊ DE CHECK-IN (se encontrar nos docs). "
+            "Dê uma dica de como chegar ao aeroporto ou onde fica o guichê (ex: 'Vá até o guichê da TAP no Terminal 2').\n\n"
+            "MUITO IMPORTANTE: Use apenas informações reais que encontrar no RAG. Se não encontrar o guichê, peça para ele verificar no painel mas diga o terminal."
         )
         
         try:
