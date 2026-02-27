@@ -57,7 +57,15 @@ def call_model(state: AgentState, config: dict = None):
     
     # Adicionar instrução de sistema
     from langchain_core.messages import SystemMessage
-    base_prompt = "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. Use query_travel_documents para consultar docs salvos. Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
+    base_prompt = (
+        "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. "
+        "REGRA ABSOLUTA: Sempre que o usuario perguntar sobre VOO, HORARIO, PASSAGEM, HOTEL, DESTINO, RESERVA, CHECK-IN, CHECK-OUT, SEGURO ou QUALQUER detalhe de viagem, "
+        "voce DEVE OBRIGATORIAMENTE chamar a ferramenta 'query_travel_documents' ANTES de responder. "
+        "NUNCA responda de memoria sobre detalhes especificos da viagem do usuario sem antes consultar os documentos via tool. "
+        "Se a tool retornar vazio, ai diga que nao encontrou. "
+        "O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. "
+        "Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
+    )
     
     context_prompt = f"\n\nContexto Atual:\n- ID Usuário: {thread_id}\n- Seu Papel na Viagem: {role}\n- Viagem Ativa (Trip ID): {active_trip if active_trip else 'Nenhuma viagem vinculada.'}\n"
     context_prompt += "MUITO IMPORTANTE: O usuário pode não ser o dono da viagem, ele pode ser um convidado. A IA deve atender as demandas dessa Viagem Ativa específica."
