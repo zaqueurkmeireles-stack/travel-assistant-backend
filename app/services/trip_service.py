@@ -48,7 +48,11 @@ class TripService:
         # Verificar se já existe
         for trip in self.trips:
             if trip["id"] == trip_id:
-                logger.info(f"Trip {trip_id} já existe, ignorando duplicata.")
+                # Atualizar end_date se vier no novo doc e não tiver no antigo
+                if doc_data.get("end_date") and not trip.get("end_date"):
+                    trip["end_date"] = doc_data.get("end_date")
+                    self._save_trips()
+                    logger.info(f"📅 end_date atualizado para a trip {trip_id}")
                 return trip
                 
         new_trip = {

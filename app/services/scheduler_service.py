@@ -32,12 +32,19 @@ class SchedulerService:
             # mas em prod seria algo como 1x ao dia.
             self.scheduler.add_job(
                 self.check_and_send_alerts,
-                trigger=CronTrigger(minute="*"), # Checar a cada minuto para o MVP
+                trigger=CronTrigger(hour=9, minute=0), # 9h da manhã todos os dias
                 id="trip_alerts_check",
                 replace_existing=True
             )
+            # Periodic Audit - 10h da manhã
+            self.scheduler.add_job(
+                self.run_periodic_trip_audits,
+                trigger=CronTrigger(hour=10, minute=0),
+                id="trip_health_audit",
+                replace_existing=True
+            )
             self.scheduler.start()
-            logger.info("⏰ Scheduler iniciado (Rodando verificação de alertas)")
+            logger.info("⏰ Scheduler iniciado (Rodando verificação de alertas e auditoria)")
 
     def check_and_send_alerts(self):
         """Verifica quais viagens precisam de alerta hoje"""
@@ -49,8 +56,30 @@ class SchedulerService:
         for trip in trips_to_alert:
             self._process_alert(trip)
             
-        # [NOVO] Checar consumo de dados proativamente para todos os usuários com planos ativos
+        # [NOVO] Checar consumo de dados proativamente
         self.check_data_plans_proactively()
+
+    def run_periodic_trip_audits(self):
+        """Auditoria de saúde de todas as viagens ativas"""
+        logger.info("🔍 Iniciando Auditoria de Saúde periódica das viagens...")
+        from app.services.trip_audit_service import TripAuditService
+        audit_svc = TripAuditService()
+        
+        for trip in self.trip_svc.trips:
+            # Auditar apenas viagens futuras ou em andamento
+            try:
+                start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                if start_dt >= datetime.now().date():
+                    user_id = trip["user_id"]
+                    audit_data = audit_svc.audit_trip(user_id, trip["id"], trip)
+                    
+                    # Só enviar se houver gaps relevantes
+                    if audit_data.get("nights_covered", 0) < audit_data.get("trip_duration_days", 0) or audit_data.get("other_missing_items"):
+                        report = audit_svc.generate_human_report(audit_data)
+                        self.n8n_svc.enviar_resposta_usuario(user_id, report)
+                        logger.info(f"📢 Relatório de Auditoria periódica enviado para {user_id}")
+            except Exception as e:
+                logger.error(f"Erro ao auditar trip {trip['id']} no scheduler: {e}")
             
     def _process_alert(self, trip: dict):
         """Processa e envia um alerta inteligente usando a IA"""

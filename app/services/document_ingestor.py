@@ -117,6 +117,15 @@ class DocumentIngestor:
                         "destination": similar["trip"]["destination"],
                         "start_date": similar["trip"]["start_date"]
                     }
+
+            # 8. Auditoria Inteligente (Gap Analysis) - Proativo
+            audit_report = None
+            if trip and trip.get("start_date") and trip.get("end_date"):
+                from app.services.trip_audit_service import TripAuditService
+                audit_svc = TripAuditService()
+                audit_data = audit_svc.audit_trip(sender_number, trip["id"], trip)
+                if audit_data.get("nights_covered", 0) < audit_data.get("trip_duration_days", 0) or audit_data.get("other_missing_items"):
+                    audit_report = audit_svc.generate_human_report(audit_data)
             
             logger.info(f"✨ Ingestão concluída com sucesso: {filename}")
             return {
@@ -124,7 +133,8 @@ class DocumentIngestor:
                 "filename": filename, 
                 "document_type": metadata["document_type"],
                 "text_preview": extracted_text[:100],
-                "trip_match": trip_match  # None se não houver viagem similar
+                "trip_match": trip_match,
+                "audit_report": audit_report  # Contém alerta proativo se houver gaps
             }
             
         except Exception as e:

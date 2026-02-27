@@ -86,6 +86,12 @@ async def receive_whatsapp_media(request: Request):
             msg_confirmacao = f"✅ Recebi seu documento: *{result['filename']}*.\nJá memorizei os detalhes e você pode me perguntar sobre ele a qualquer momento!"
             n8n_service.enviar_resposta_usuario(sender_number, msg_confirmacao)
             
+            # Se houver relatório de auditoria (gaps encontrados) → avisar proativamente
+            audit_report = result.get("audit_report")
+            if audit_report:
+                n8n_service.enviar_resposta_usuario(sender_number, audit_report)
+                logger.info(f"📢 Alerta de auditoria enviado para {sender_number}")
+
             # Se detectou viagem similar de outro usuário → propor vinculação
             trip_match = result.get("trip_match")
             if trip_match:
