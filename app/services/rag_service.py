@@ -54,6 +54,35 @@ class RAGService:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar dados do RAG: {e}")
 
+    def delete_documents_by_type(self, thread_id: str, document_type: str, trip_id: str = None) -> int:
+        """Remove documentos do mesmo tipo para evitar duplicatas ao atualizar informações."""
+        try:
+            self._load_data()  # garantir dados frescos do disco
+            if not self.documents:
+                return 0
+            indices_to_remove = []
+            for i, doc in enumerate(self.documents):
+                m = doc["metadata"]
+                same_user = m.get("thread_id") == thread_id
+                same_type = m.get("document_type", "").lower() == document_type.lower()
+                same_trip = (trip_id and m.get("trip_id") == trip_id) or (not trip_id)
+                if same_user and same_type and same_trip:
+                    indices_to_remove.append(i)
+            if not indices_to_remove:
+                return 0
+            for i in sorted(indices_to_remove, reverse=True):
+                self.documents.pop(i)
+                if len(self.vectors) > 1:
+                    self.vectors = np.delete(self.vectors, i, axis=0)
+                else:
+                    self.vectors = np.array([])
+            self._save_data()
+            logger.info(f"🗑️ {len(indices_to_remove)} doc(s) antigo(s) tipo '{document_type}' removidos para {thread_id}")
+            return len(indices_to_remove)
+        except Exception as e:
+            logger.error(f"❌ Erro ao remover docs antigos: {e}")
+            return 0
+
     def add_document(self, text: str, metadata: Dict[str, Any]):
         """Gera embedding e adiciona o documento à base"""
         try:

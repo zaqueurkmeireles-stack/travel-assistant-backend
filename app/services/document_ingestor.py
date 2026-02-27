@@ -84,13 +84,19 @@ class DocumentIngestor:
                 
             active_trip = user_service.get_active_trip(sender_number)
             
-            # 5. Indexar no RAG com o Trip ID
+            # 5. Remover documentos antigos do mesmo tipo antes de indexar
+            doc_type = parse_result.get("document_type", "geral")
+            removed = self.rag_svc.delete_documents_by_type(sender_number, doc_type, active_trip)
+            if removed:
+                logger.info(f"🔄 {removed} versão(ões) anterior(es) do tipo '{doc_type}' substituída(s)")
+            
+            # 6. Indexar no RAG com o Trip ID
             metadata = {
                 "filename": filename,
                 "thread_id": sender_number,
                 "trip_id": active_trip,
                 "mimetype": mimetype,
-                "document_type": parse_result.get("document_type", "geral")
+                "document_type": doc_type
             }
             
             self.rag_svc.add_document(extracted_text, metadata)
