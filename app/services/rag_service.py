@@ -101,20 +101,19 @@ class RAGService:
             user_service = UserService()
             active_trip = user_service.get_active_trip(thread_id)
             
-            if not active_trip:
-                return "Você não está vinculado a nenhuma viagem ativa no momento."
-            
             # Gerar embedding da query
             query_vector = np.array(self.embeddings.embed_query(query_text))
             
-            # Filtrar documentos pelo trip_id (ou fallback para o próprio thread_id caso antigo)
-            user_indices = [
-                i for i, doc in enumerate(self.documents) 
-                if doc["metadata"].get("trip_id") == active_trip or doc["metadata"].get("thread_id") == thread_id
-            ]
+            # Filtrar documentos pelo trip_id (ou fallback para o próprio thread_id)
+            user_indices = []
+            for i, doc in enumerate(self.documents):
+                m_trip = doc["metadata"].get("trip_id")
+                m_thread = doc["metadata"].get("thread_id")
+                if (active_trip and m_trip == active_trip) or m_thread == thread_id:
+                    user_indices.append(i)
             
             if not user_indices:
-                return "Nenhuma informação relevante encontrada nos documentos desta viagem."
+                return "Nenhuma informação relevante encontrada nos documentos enviados."
                 
             # Pegar os vetores filtrados
             user_vectors = self.vectors[user_indices]
@@ -137,14 +136,17 @@ class RAGService:
             return f"Erro ao acessar documentos: {str(e)}"
 
     def list_user_documents(self, thread_id: str) -> List[str]:
-        """Lista nomes de arquivos enviados para a viagem atual do usuário"""
+        """Lista nomes de arquivos enviados para a viagem atual do usuário ou para o próprio usuário"""
         from app.services.user_service import UserService
         user_service = UserService()
         active_trip = user_service.get_active_trip(thread_id)
         
-        filenames = set([
-            doc["metadata"].get("filename") 
-            for doc in self.documents 
-            if doc["metadata"].get("trip_id") == active_trip or doc["metadata"].get("thread_id") == thread_id
-        ])
-        return list(f for f in filenames if f)
+        filenames = set()
+        for doc in self.documents:
+            m_trip = doc["metadata"].get("trip_id")
+            m_thread = doc["metadata"].get("thread_id")
+            if (active_trip and m_trip == active_trip) or m_thread == thread_id:
+                if doc["metadata"].get("filename"):
+                    filenames.add(doc["metadata"]["filename"])
+                    
+        return list(filenames)
