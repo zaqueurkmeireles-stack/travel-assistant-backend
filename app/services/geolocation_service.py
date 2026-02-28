@@ -3,9 +3,10 @@ Geolocation Service - Gerencia localização do usuário e fornece guia de chega
 """
 
 from loguru import logger
-from typing import Dict, Any, Optional
 from app.services.maps_service import GoogleMapsService
 from app.services.trip_service import TripService
+from app.services.park_service import ParkService
+from typing import Optional, Dict, Any, List
 
 class GeolocationService:
     """Gerencia a localização do usuário e provê assistência baseada em geofencing simples"""
@@ -13,6 +14,9 @@ class GeolocationService:
     def __init__(self):
         self.maps_svc = GoogleMapsService()
         self.trip_svc = TripService()
+        self.park_svc = ParkService()
+        self.PROXIMITY_RADIUS_KM = 2.0  # Raio para dicas de destino
+        self.PARK_RADIUS_KM = 0.5       # Raio para ativar Modo Parque
         logger.info("✅ GeolocationService inicializado")
         
     def process_location(self, user_id: str, lat: float, lng: float) -> Optional[str]:
@@ -75,7 +79,57 @@ class GeolocationService:
                 self.trip_svc._save_trips()
                 return tip
             
+        # 4. Verificar proximidade com parques temáticos (ex: Europa Park)
+        # Assumindo que active_trip pode ter um campo 'parks_of_interest' ou similar
+        # Para este exemplo, vamos verificar Europa Park diretamente
+        europa_park_info = self.park_svc.get_park_info("Europa Park") # Exemplo
+        
+        if europa_park_info:
+            park_lat = europa_park_info["lat"]
+            park_lng = europa_park_info["lng"]
+            park_distance = self._calculate_distance(lat, lng, park_lat, park_lng)
+            
+            if park_distance <= self.PARK_RADIUS_KM:
+                logger.info(f"🎉 Usuário {user_id} próximo de {europa_park_info['name']} (distância: {park_distance:.2f}km)")
+                
+                # Cooldown para não spammar o guia do parque
+                last_park_guide_time = active_trip.get("last_park_guide_sent_at", {}).get(europa_park_info['id'])
+                should_send_park_guide = True
+                if last_park_guide_time:
+                    try:
+                        last_dt = datetime.fromisoformat(last_park_guide_time)
+                        if (datetime.now() - last_dt).total_seconds() < 3600: # 1 hora de cooldown para guia de parque
+                            should_send_park_guide = False
+                    except:
+                        pass
+                
+                if should_send_park_guide:
+                    guide_message = self._trigger_park_mode_guide(europa_park_info['id'], user_id)
+                    if "last_park_guide_sent_at" not in active_trip:
+                        active_trip["last_park_guide_sent_at"] = {}
+                    active_trip["last_park_guide_sent_at"][europa_park_info['id']] = datetime.now().isoformat()
+                    self.trip_svc._save_trips()
+                    return guide_message
+            
         return None
+
+    def _trigger_park_mode_guide(self, park_id: str, user_id: str) -> str:
+        """Gera um guia proativo em tempo real para o parque"""
+        logger.info(f"🎢 Gerando Guia de Parque para {park_id}...")
+        
+        from app.agents.orchestrator import TravelAgent
+        agent = TravelAgent()
+        
+        prompt = (
+            f"O usuário acaba de entrar no parque temático: **{park_id}**. "
+            "Sua missão é dar as boas-vindas ao parque e fornecer um resumo em tempo real dos tempos de espera. "
+            "1. Chame a ferramenta 'get_park_live_status' para o parque atual.\n"
+            "2. Analise os tempos e sugira uma rota inteligente (quais brinquedos ir agora e quais evitar).\n"
+            "3. Deseje um dia mágico e lembre que você pode guiá-lo pelo mapa se ele se perder."
+        )
+        
+        msg = agent.chat(user_input=prompt, thread_id=user_id)
+        return msg
 
     def _calculate_distance(self, lat1, lon1, lat2, lon2):
         """Calcula distância aproximada em KM (Simplificado)"""

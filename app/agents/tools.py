@@ -27,6 +27,7 @@ _serpapi_svc = None
 _finance_svc = None
 _connectivity_svc = None
 _emergency_svc = None
+_park_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -94,6 +95,13 @@ def get_emergency_svc():
         from app.services.emergency_service import EmergencyService
         _emergency_svc = EmergencyService()
     return _emergency_svc
+
+def get_park_svc():
+    global _park_svc
+    if _park_svc is None:
+        from app.services.park_service import ParkService
+        _park_svc = ParkService()
+    return _park_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -288,6 +296,17 @@ def get_local_emergency_numbers(country: str) -> str:
     return svc.format_emergency_message(country, numbers)
 
 @tool
+def get_park_live_status(park_name_or_id: str) -> str:
+    """
+    Busca o status em tempo real de um parque temático (ex: 'europa_park', 'disneyland_paris').
+    Retorna tempos de espera de filas e status das atrações.
+    """
+    logger.info(f"🎢 Tool: Buscando status do parque {park_name_or_id}")
+    svc = get_park_svc()
+    live_data = svc.get_live_data(park_name_or_id)
+    return svc.format_park_summary(live_data)
+
+@tool
 def generate_social_post(description: str, config: RunnableConfig) -> str:
     """
     Gera opções de legendas e hashtags inteligentes para Instagram/Facebook.
@@ -356,5 +375,6 @@ ALL_TOOLS = [
     provide_visual_navigation_map,
     manage_trip_sharing,
     get_local_emergency_numbers,
-    generate_social_post
+    generate_social_post,
+    get_park_live_status
 ]
