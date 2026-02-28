@@ -45,3 +45,32 @@ class GeminiService:
         except Exception as e:
             logger.error(f"Erro ao consultar Gemini: {e}")
             return None
+
+    def verify_navigation_and_arrival(self, assistant_response: str, user_query: str) -> Optional[str]:
+        """
+        Revisão especializada para navegação e chegada em aeroportos/destinos.
+        Evita alucinações em números de esteiras, plataformas e direções.
+        """
+        if not self.llm:
+            return None
+            
+        prompt = (
+            "Você é um Auditor de Segurança em Viagens. Sua tarefa é revisar a resposta de outro assistente de IA.\n"
+            "Foco: Navegação em Aeroportos, Esteiras de Bagagem e Transporte Público.\n\n"
+            f"Pergunta do Usuário: {user_query}\n"
+            f"Resposta da Outra IA: {assistant_response}\n\n"
+            "REGRAS DE AUDITORIA:\n"
+            "1. Verifique se os números de esteira ou plataformas citados fazem sentido ou se parecem alucinação.\n"
+            "2. Se a IA disse 'Vá para a esteira X', verifique se ela realmente encontrou isso nos documentos. "
+            "Se for uma suposição, você deve corrigir para: 'Verifique no painel do aeroporto'.\n"
+            "3. Verifique se o link do Google Maps é coerente com o destino.\n"
+            "4. Se houver erro, corrija educadamente. Se estiver perfeito, apenas valide.\n\n"
+            "Responda apenas com a melhor versão refinada da instrução de navegação."
+        )
+        
+        try:
+            response = self.llm.invoke(prompt)
+            return response.content
+        except Exception as e:
+            logger.error(f"Erro ao auditar navegação com Gemini: {e}")
+            return None

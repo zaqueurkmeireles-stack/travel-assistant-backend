@@ -61,9 +61,12 @@ def call_model(state: AgentState, config: dict = None):
         "Voce e o Seven Assistant Travel, o melhor concierge de viagens do mundo. "
         "REGRA ABSOLUTA: Sempre que o usuario perguntar sobre VOO, HORARIO, PASSAGEM, HOTEL, DESTINO, RESERVA, CHECK-IN, CHECK-OUT, SEGURO ou QUALQUER detalhe de viagem, "
         "voce DEVE OBRIGATORIAMENTE chamar a ferramenta 'query_travel_documents' ANTES de responder. "
+        "### GUIA DE CHEGADA E AEROPORTO:\n"
+        "1. **Malas:** Se o usuário estiver chegando de um voo, procure no RAG ou no status do voo por 'Esteira', 'Carrossel' ou 'Baggage Claim'. Informe ao usuário onde pegar as malas.\n"
+        "2. **Transporte:** Se NÃO houver confirmação de Aluguel de Carro no RAG, pergunte proativamente: 'Como você pretende ir para o hotel? (Carro de aplicativo, Trem, Ônibus ou Uber)'.\n"
+        "3. **Busca Proativa:** Se o usuário escolher transporte público (ônibus/trem), use a ferramenta 'search_real_travel_tips' ou 'get_directions' para encontrar o local EXATO do ponto/plataforma no aeroporto.\n"
+        "4. **Navegação:** Sempre use 'provide_visual_navigation_map' para guiar o usuário até o próximo ponto (esteira -> transporte).\n"
         "NUNCA responda de memoria sobre detalhes especificos da viagem do usuario sem antes consultar os documentos via tool. "
-        "Se a tool retornar vazio, ai diga que nao encontrou. "
-        "O usuario PODE enviar documentos de viagem neste chat (PDF, foto, imagem). Quando perguntarem se pode enviar, diga SIM. "
         "Se nao ha documentos, peca a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e economico com dados."
     )
     
@@ -106,7 +109,11 @@ def call_model(state: AgentState, config: dict = None):
     messages_to_invoke = [SystemMessage(content=system_prompt)] + trimmed_history
     response = llm_with_tools.invoke(messages_to_invoke)
     
-    needs_review = not (hasattr(response, "tool_calls") and response.tool_calls)
+    # 🛡️ FORÇAR REVISÃO EM CASOS CRÍTICOS (Chegada/Navegação)
+    critical_keywords = ["cheguei", "chegada", "esteira", "mala", "aeroporto", "transporte", "onde", "como chegar", "ônibus", "trem", "uber"]
+    is_arrival_query = any(kw in last_user_message.lower() for kw in critical_keywords)
+    
+    needs_review = not (hasattr(response, "tool_calls") and response.tool_calls) or is_arrival_query
     
     return {
         "messages": [response],
@@ -139,7 +146,14 @@ def expert_consensus_review(state: AgentState):
             try:
                 from app.services.gemini_service import GeminiService
                 gemini_svc = GeminiService()
-                gemini_res = gemini_svc.get_second_opinion(last_ai_message, user_query)
+                
+                # Se for consulta de chegada/navegação, usar prompt especializado
+                critical_keywords = ["cheguei", "chegada", "esteira", "mala", "aeroporto", "transporte", "onde", "como chegar", "ônibus", "trem", "uber"]
+                if any(kw in user_query.lower() for kw in critical_keywords):
+                    gemini_res = gemini_svc.verify_navigation_and_arrival(last_ai_message, user_query)
+                else:
+                    gemini_res = gemini_svc.get_second_opinion(last_ai_message, user_query)
+                    
                 if gemini_res:
                     gemini_opinion = gemini_res
                     logger.info("✅ Opinião do Gemini obtida.")
@@ -158,7 +172,7 @@ def expert_consensus_review(state: AgentState):
             except Exception as e:
                 logger.error(f"Erro no Claude: {e}")
         elif gemini_opinion:
-            final_response = f"{last_ai_message}\n\n---\n✨ **Revisão Técnica (Gemini):**\n{gemini_opinion}"
+            final_response = f"{last_ai_message}\n\n---\n✨ **Revisão de Segurança (Consenso IAs):**\n{gemini_opinion}"
 
         if not final_response or final_response == last_ai_message:
             # Se não houve refinamento ou falhou, mantemos o original mas logamos/notificamos
