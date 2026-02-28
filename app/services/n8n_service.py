@@ -37,18 +37,20 @@ class N8nService:
                 "origem": "ia_travel_companion"
             }
             
-            logger.info(f"📤 Chamando n8n em: {self.webhook_url}")
+            logger.info(f"📤 Enviando para n8n: {self.webhook_url} | Destino: {numero_usuario}")
+            logger.debug(f"📦 Payload n8n: {payload}")
+            
             response = requests.post(self.webhook_url, json=payload, timeout=15)
             
             if response.status_code == 200:
-                logger.info(f"✅ Resposta enviada para o n8n (Destino: {numero_usuario})")
+                logger.info(f"✅ Sucesso no n8n para {numero_usuario}")
                 return True
             else:
-                logger.error(f"❌ Erro ao enviar para o n8n. Status: {response.status_code}")
+                logger.error(f"❌ Erro n8n. Status: {response.status_code} | Resposta: {response.text[:200]}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Erro de conexão com o n8n: {e}")
+            logger.error(f"❌ Falha crítica de conexão com n8n: {e}")
             return False
 
     def broadcast_to_all(self, mensagem: str, user_ids: list) -> dict:
