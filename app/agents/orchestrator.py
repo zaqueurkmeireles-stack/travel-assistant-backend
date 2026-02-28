@@ -141,7 +141,14 @@ def call_model(state: AgentState, config: dict = None):
     critical_keywords = ["cheguei", "chegada", "esteira", "mala", "aeroporto", "transporte", "onde", "como chegar", "ônibus", "trem", "uber"]
     is_arrival_query = any(kw in last_user_message.lower() for kw in critical_keywords)
     
+    # ✂️ OTIMIZAÇÃO: Não revisar se for mensagem curta ou saudação (evita gastar cota à toa)
+    is_simple_msg = len(last_user_message) < 20 or any(kw in last_user_message.lower() for kw in ["oi", "olá", "bom dia", "boa tarde", "boa noite", "obrigado", "valeu"])
+    
     needs_review = not (hasattr(response, "tool_calls") and response.tool_calls) or is_arrival_query
+    
+    if is_simple_msg:
+        needs_review = False
+        logger.info("ℹ️ Mensagem simples detectada. Bypass Expert Review.")
     
     return {
         "messages": [response],
@@ -185,8 +192,19 @@ def expert_consensus_review(state: AgentState):
                 if gemini_res:
                     gemini_opinion = gemini_res
                     logger.info("✅ Opinião do Gemini obtida.")
+                elif gemini_res is None:
+                    # Se retornou None, pode ser erro de cota
+                    logger.warning("⚠️ Gemini não retornou resposta (possível erro de cota).")
             except Exception as e:
                 logger.error(f"Erro no Gemini: {e}")
+                if "429" in str(e) or "quota" in str(e).lower():
+                    n8n = N8nService()
+                    admin_num = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                    if admin_num:
+                        n8n.enviar_resposta_usuario(
+                            admin_num, 
+                            "🚨 *ALERTA GOOGLE GEMINI*\nO limite de cota gratuita (429) foi atingido. As revisões de segurança estão temporariamente suspensas."
+                        )
 
         # 2. Obter refinamento final do Claude (Veredito)
         if settings.ANTHROPIC_API_KEY:

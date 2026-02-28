@@ -236,11 +236,12 @@ async def chat_endpoint(
             
             # Msg para o Admin se passou no Throttle
             if should_notify_admin:
-                admin_number = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
-                if admin_number:
+                admin_raw = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                if admin_raw:
+                    admin_number = user_service.normalize_phone(admin_raw)
                     admin_msg = f"⚠️ *Pedido de Acesso!*\n\"o numero {request.user_id}\" esta tentando conversar com o assistente de viagens, voce confirma?\n\nPara autorizar, responda:\n`sim {request.user_id}`"
                     background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
-                    logger.info(f"🔔 Admin notificado sobre a tentativa de {request.user_id}")
+                    logger.info(f"🔔 Admin notificado ({admin_number}) sobre a tentativa de {request.user_id}")
             
             return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
 
