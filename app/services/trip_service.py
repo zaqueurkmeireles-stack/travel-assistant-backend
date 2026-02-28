@@ -51,8 +51,15 @@ class TripService:
                 # Atualizar end_date se vier no novo doc e não tiver no antigo
                 if doc_data.get("end_date") and not trip.get("end_date"):
                     trip["end_date"] = doc_data.get("end_date")
-                    self._save_trips()
-                    logger.info(f"📅 end_date atualizado para a trip {trip_id}")
+                
+                # [NOVO] Acumular POIs (Pontos de Interesse) de docs diferentes
+                new_pois = doc_data.get("points_of_interest", [])
+                if new_pois:
+                    existing_pois = trip.get("points_of_interest", [])
+                    # Union of lists avoiding duplicates
+                    trip["points_of_interest"] = list(set(existing_pois + new_pois))
+                
+                self._save_trips()
                 return trip
                 
         new_trip = {
@@ -64,8 +71,9 @@ class TripService:
             "confirmation_code": doc_data.get("confirmation_code"),
             "flight_number": doc_data.get("flight_number"), 
             "event_name": doc_data.get("event_name"), # Novo: Para F1/Shows
-            "venue": doc_data.get("venue"),           # Novo: Local do evento
-            "gate": doc_data.get("gate"),             # Novo: Portão de acesso em eventos
+            "venue": doc_data.get("venue"),           
+            "gate": doc_data.get("gate"),             
+            "points_of_interest": doc_data.get("points_of_interest", []), # Lista de locais (ex: Parques Estaduais)
             "alerts_sent": [], 
             "landing_alert_sent": False, 
             "created_at": datetime.now().isoformat()

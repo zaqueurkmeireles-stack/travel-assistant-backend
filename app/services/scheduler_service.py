@@ -73,6 +73,13 @@ class SchedulerService:
                 id="park_wait_monitor",
                 replace_existing=True
             )
+            # Auditoria de Destinos (POI) - Meio-dia
+            self.scheduler.add_job(
+                self.run_destination_audit_job,
+                trigger=CronTrigger(hour=12, minute=0),
+                id="destination_poi_audit",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -350,3 +357,46 @@ class SchedulerService:
                         logger.info(f"✨ Dica Genie enviada para {user_id}")
             except Exception as e:
                 logger.error(f"Erro no monitor de filas para park {park_id}: {e}")
+
+    def run_destination_audit_job(self):
+        """Monitor proativo de fechamentos e manutenção para ALL POIs das viagens."""
+        logger.info("🗺️ Iniciando Auditoria Universal de Destinos (POIs)...")
+        today = datetime.now().date()
+        from datetime import timedelta
+        
+        for trip in self.trip_svc.trips:
+            pois = trip.get("points_of_interest", [])
+            if not pois:
+                continue
+                
+            user_id = trip["user_id"]
+            start_date_str = trip["start_date"]
+            
+            try:
+                start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                # Auditar se a viagem começa nos próximos 3 dias ou já está ocorrendo
+                days_until = (start_dt - today).days
+                if -1 <= days_until <= 3:
+                    for poi in pois:
+                        logger.info(f"🔎 Auditando status real de {poi} para {user_id}...")
+                        
+                        prompt = (
+                            f"Você é um concierge de elite. Busque informações de ÚLTIMA HORA sobre o status de funcionamento de: **{poi}**.\n"
+                            f"Considere a data: {start_date_str}.\n"
+                            "Verifique especificamente se há avisos de FECHAMENTO, MANUTENÇÃO, GREVE ou REFORMAS.\n"
+                            "Se encontrar um problema real, gere um alerta breve e educado sugerindo que o usuário verifique ou mude o plano.\n"
+                            "Se estiver tudo normal, responda 'STATUS_OK'."
+                        )
+                        
+                        from app.agents.orchestrator import TravelAgent
+                        agent = TravelAgent()
+                        status_report = agent.chat(user_input=prompt, thread_id=user_id)
+                        
+                        if status_report and "STATUS_OK" not in status_report and len(status_report) > 30:
+                            from app.services.destination_monitor_service import DestinationMonitorService
+                            dm_svc = DestinationMonitorService()
+                            alert_msg = dm_svc.format_closure_alert(poi, status_report, start_date_str)
+                            self.n8n_svc.enviar_resposta_usuario(user_id, alert_msg)
+                            logger.info(f"🚨 Alerta de interdição enviado para {user_id} sobre {poi}")
+            except Exception as e:
+                logger.error(f"Erro na auditoria de destino para trip {trip.get('id')}: {e}")

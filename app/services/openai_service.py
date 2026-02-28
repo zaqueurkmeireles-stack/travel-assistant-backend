@@ -82,6 +82,10 @@ class OpenAIService:
                     "- 'flight_number': Número do voo (ex: LA3211, TP186).\n"
                     "- 'terminal': Terminal de embarque/desembarque (se disponível).\n"
                     "- 'checkin_counter': Guichê ou balcão de check-in (se disponível).\n"
+                    "- 'event_name': Nome do evento se for ticket de show/F1.\n"
+                    "- 'venue': Local do evento ou atração específica.\n"
+                    "- 'gate': Portão de acesso (para eventos).\n"
+                    "- 'points_of_interest': Lista de lugares ou atrações mencionadas (ex: ['Torrey Pines State Park', 'USS Midway']).\n"
                     "- 'summary': Breve resumo do documento."
                 )
             },
