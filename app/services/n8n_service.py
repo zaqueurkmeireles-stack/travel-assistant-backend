@@ -37,6 +37,7 @@ class N8nService:
                 "origem": "ia_travel_companion"
             }
             
+            logger.info(f"📤 Chamando n8n em: {self.webhook_url}")
             response = requests.post(self.webhook_url, json=payload, timeout=15)
             
             if response.status_code == 200:
