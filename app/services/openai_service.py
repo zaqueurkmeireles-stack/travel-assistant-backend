@@ -17,6 +17,14 @@ class OpenAIService:
         self.model = "gpt-4o-mini"
         logger.info("✅ OpenAI Service inicializado")
     
+    def analyze_text(self, text: str, system_prompt: str = "Você é um assistente útil especializado em viagens.") -> str:
+        """Versão simplificada para análise de texto puro"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text}
+        ]
+        return self.chat_completion(messages)
+
     def chat_completion(
         self,
         messages: List[Dict[str, str]],
