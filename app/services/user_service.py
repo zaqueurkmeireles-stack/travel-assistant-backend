@@ -151,10 +151,10 @@ class UserService:
         uid = self.normalize_phone(guest_id)
         admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         
+        self._ensure_admin()
+        
         if not admin_number or admin_number not in self.users:
             return False
-            
-        self._ensure_admin()
         
         pending_requests = self.users[admin_number].setdefault("pending_requests", {})
         last_request = pending_requests.get(uid)
