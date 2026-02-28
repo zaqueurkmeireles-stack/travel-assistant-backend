@@ -70,8 +70,7 @@ def call_model(state: AgentState, config: dict = None):
     context_prompt = f"\n\nContexto Atual:\n- ID Usuário: {thread_id}\n- Seu Papel na Viagem: {role}\n- Viagem Ativa (Trip ID): {active_trip if active_trip else 'Nenhuma viagem vinculada.'}\n"
     context_prompt += "MUITO IMPORTANTE: O usuário pode não ser o dono da viagem, ele pode ser um convidado. A IA deve atender as demandas dessa Viagem Ativa específica."
     
-    # 🔑 INJEÇÃO DIRETA DO RAG: busca e injeta o contexto de documentos SEMPRE,
-    # sem depender do LLM chamar a tool (que pode ser ignorada)
+    rag_context = ""
     try:
         from app.services.rag_service import RAGService
         rag = RAGService()
@@ -86,11 +85,11 @@ def call_model(state: AgentState, config: dict = None):
         if last_user_message and rag.documents:
             rag_context = rag.query(last_user_message, thread_id, k=4)
             if rag_context and "ainda não enviou" not in rag_context and "Nenhuma informação" not in rag_context:
-                # 🛡️ Limite de Segurança: truncate para evitar Estouro de Contexto (128k tokens)
-                # 50k caracteres é uma folga segura (~15k tokens)
-                if len(rag_context) > 50000:
-                    logger.warning(f"⚠️ RAG Context muito grande ({len(rag_context)} chars). Truncando para 50k.")
-                    rag_context = rag_context[:50000] + "\n\n[... Contexto truncado por tamanho ...]"
+                # 🛡️ Super Limite de Segurança (v1.2.2): truncate para 20k chars
+                # Isso garante que mesmo com histórico, não estoure os 128k tokens
+                if len(rag_context) > 20000:
+                    logger.warning(f"⚠️ RAG Context muito grande ({len(rag_context)} chars). Truncando para 20k.")
+                    rag_context = rag_context[:20000] + "\n\n[... Contexto truncado por tamanho ...]"
                 
                 context_prompt += f"\n\n📄 DOCUMENTOS DA VIAGEM (use estas informações para responder):\n{rag_context}"
                 logger.info(f"✅ RAG injetado no prompt diretamente ({len(rag_context)} chars)")
@@ -101,7 +100,10 @@ def call_model(state: AgentState, config: dict = None):
     
     system_prompt = base_prompt + context_prompt
     
-    messages_to_invoke = [SystemMessage(content=system_prompt)] + state["messages"]
+    # ✂️ TRIMMING DE HISTÓRICO: Mantém apenas as últimas 15 mensagens para evitar estouro de tokens
+    trimmed_history = messages[-15:] if len(messages) > 15 else messages
+    
+    messages_to_invoke = [SystemMessage(content=system_prompt)] + trimmed_history
     response = llm_with_tools.invoke(messages_to_invoke)
     
     needs_review = not (hasattr(response, "tool_calls") and response.tool_calls)
