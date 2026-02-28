@@ -24,6 +24,30 @@ class ParkService:
             "name": "Disneyland Paris",
             "lat": 48.8674,
             "lng": 2.7836
+        },
+        "magic_kingdom": {
+            "id": "e957da41-3552-4cf6-b636-5babc5cbc4e5",
+            "name": "Magic Kingdom - Disney World",
+            "lat": 28.4177,
+            "lng": -81.5812
+        },
+        "hollywood_studios": {
+            "id": "28874744-8643-4f95-bc72-4caefca5ca99",
+            "name": "Hollywood Studios - Disney World",
+            "lat": 28.3575,
+            "lng": -81.5583
+        },
+        "universal_studios_florida": {
+            "id": "c4fe5a86-8553-445d-b456-b9a0131e0c79",
+            "name": "Universal Studios Florida",
+            "lat": 28.4794,
+            "lng": -81.4684
+        },
+        "islands_of_adventure": {
+            "id": "2d305b4c-42b3-4745-8ce4-afb02f7ce0bc",
+            "name": "Universal's Islands of Adventure",
+            "lat": 28.4719,
+            "lng": -81.4714
         }
     }
 

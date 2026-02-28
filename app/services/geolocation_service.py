@@ -79,37 +79,49 @@ class GeolocationService:
                 self.trip_svc._save_trips()
                 return tip
             
-        # 4. Verificar proximidade com parques temáticos (ex: Europa Park)
-        # Assumindo que active_trip pode ter um campo 'parks_of_interest' ou similar
-        # Para este exemplo, vamos verificar Europa Park diretamente
-        europa_park_info = self.park_svc.get_park_info("Europa Park") # Exemplo
-        
-        if europa_park_info:
-            park_lat = europa_park_info["lat"]
-            park_lng = europa_park_info["lng"]
+        # 4. Verificar proximidade com parques temáticos (Disney, Universal, Europa Park, etc.)
+        for park_key, park_info in self.park_svc.PARK_DATA.items():
+            park_lat = park_info["lat"]
+            park_lng = park_info["lng"]
             park_distance = self._calculate_distance(lat, lng, park_lat, park_lng)
             
             if park_distance <= self.PARK_RADIUS_KM:
-                logger.info(f"🎉 Usuário {user_id} próximo de {europa_park_info['name']} (distância: {park_distance:.2f}km)")
+                logger.info(f"🎉 Usuário {user_id} próximo de {park_info['name']} (distância: {park_distance:.2f}km)")
+                
+                # Marcar que o usuário está "No Parque" para o monitoramento proativo
+                active_trip["current_park_id"] = park_info["id"]
+                active_trip["current_park_name"] = park_info["name"]
                 
                 # Cooldown para não spammar o guia do parque
-                last_park_guide_time = active_trip.get("last_park_guide_sent_at", {}).get(europa_park_info['id'])
+                last_park_guide_time = active_trip.get("last_park_guide_sent_at", {}).get(park_info['id'])
                 should_send_park_guide = True
                 if last_park_guide_time:
                     try:
                         last_dt = datetime.fromisoformat(last_park_guide_time)
-                        if (datetime.now() - last_dt).total_seconds() < 3600: # 1 hora de cooldown para guia de parque
+                        if (datetime.now() - last_dt).total_seconds() < 3600: # 1 hora de cooldown
                             should_send_park_guide = False
                     except:
                         pass
                 
                 if should_send_park_guide:
-                    guide_message = self._trigger_park_mode_guide(europa_park_info['id'], user_id)
+                    guide_message = self._trigger_park_mode_guide(park_info['id'], user_id)
                     if "last_park_guide_sent_at" not in active_trip:
                         active_trip["last_park_guide_sent_at"] = {}
-                    active_trip["last_park_guide_sent_at"][europa_park_info['id']] = datetime.now().isoformat()
+                    active_trip["last_park_guide_sent_at"][park_info['id']] = datetime.now().isoformat()
                     self.trip_svc._save_trips()
                     return guide_message
+            
+        # Se saiu do parque, remover a flag
+        if "current_park_id" in active_trip:
+            # Só remove se estiver realmente longe (histerese de 1km)
+            park_info = self.park_svc.get_park_info(active_trip["current_park_id"])
+            if park_info:
+                dist = self._calculate_distance(lat, lng, park_info["lat"], park_info["lng"])
+                if dist > 1.0:
+                    logger.info(f"👋 Usuário saiu do parque {park_info['name']}")
+                    del active_trip["current_park_id"]
+                    del active_trip["current_park_name"]
+                    self.trip_svc._save_trips()
             
         return None
 

@@ -65,6 +65,14 @@ class SchedulerService:
                 id="weekly_safety_check",
                 replace_existing=True
             )
+            # Monitor de Filas de Parques - A cada 10 minutos
+            self.scheduler.add_job(
+                self.monitor_park_wait_times,
+                trigger='interval',
+                minutes=10,
+                id="park_wait_monitor",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -293,3 +301,52 @@ class SchedulerService:
                         logger.info(f"🚨 Alerta de segurança enviado para {user_id} sobre {dest}")
             except Exception as e:
                 logger.error(f"Erro no monitor semanal de segurança para trip {trip.get('id')}: {e}")
+
+    def monitor_park_wait_times(self):
+        """Monitor proativo de filas para usuários que estão 'No Parque'."""
+        logger.info("🎡 Monitorando filas dos parques para usuários ativos...")
+        
+        for trip in self.trip_svc.trips:
+            park_id = trip.get("current_park_id")
+            if not park_id:
+                continue
+                
+            user_id = trip["user_id"]
+            park_name = trip.get("current_park_name", "Parque")
+            
+            try:
+                from app.services.park_service import ParkService
+                park_svc = ParkService()
+                live_data = park_svc.get_live_data(park_id)
+                
+                # Identificar oportunidades "Genie" (Ex: Brinquedos populares com pouca fila)
+                # Vamos focar em atrações com menos de 15 minutos que costumam ser concorridas
+                opportunities = []
+                for item in live_data:
+                    if item.get("entityType") == "ATTRACTION":
+                        wait = item.get("queue", {}).get("STANDBY", {}).get("waitTime")
+                        if wait is not None and 5 <= wait <= 15:
+                            opportunities.append(f"✨ *{item.get('name')}*: apenas {wait} min!")
+                
+                if opportunities:
+                    # Cooldown para não ser chato (1 mensagem proativa a cada 45 min)
+                    last_genie_time = trip.get("last_park_genie_at")
+                    send_msg = True
+                    if last_genie_time:
+                        last_dt = datetime.fromisoformat(last_genie_time)
+                        if (datetime.now() - last_dt).total_seconds() < 2700:
+                            send_msg = False
+                    
+                    if send_msg:
+                        msg = (
+                            f"🎢 **DICA DO SEVEN CONCIERGE EM {park_name.upper()}** 🎡\n\n"
+                            "Vi aqui que algumas filas baixaram muito! Aproveite agora:\n\n"
+                            + "\n".join(opportunities[:3]) +
+                            "\n\n📍 *Deseja o mapa para chegar em algum deles? Só me pedir!*"
+                        )
+                        self.n8n_svc.enviar_resposta_usuario(user_id, msg)
+                        trip["last_park_genie_at"] = datetime.now().isoformat()
+                        self.trip_svc._save_trips()
+                        logger.info(f"✨ Dica Genie enviada para {user_id}")
+            except Exception as e:
+                logger.error(f"Erro no monitor de filas para park {park_id}: {e}")
