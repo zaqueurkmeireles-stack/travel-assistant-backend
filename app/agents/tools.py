@@ -288,6 +288,36 @@ def get_local_emergency_numbers(country: str) -> str:
     return svc.format_emergency_message(country, numbers)
 
 @tool
+def generate_social_post(description: str, config: RunnableConfig) -> str:
+    """
+    Gera opções de legendas e hashtags inteligentes para Instagram/Facebook.
+    Use quando o usuário quiser postar uma foto da viagem e precisar de ajuda com o texto.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    from app.services.trip_service import TripService
+    user_svc = UserService()
+    trip_svc = TripService()
+    
+    active_trip_id = user_svc.get_active_trip(user_id)
+    destination = "Viagem Incrível"
+    if active_trip_id:
+        for t in trip_svc.trips:
+            if t["id"] == active_trip_id:
+                destination = t["destination"]
+                break
+                
+    openai_svc = get_openai_svc()
+    post_ideas = openai_svc.generate_social_caption(destination, description)
+    
+    return (
+        f"📸 **SEU POST ESTÁ PRONTO!** 🤳\n\n"
+        f"Aqui estão as melhores opções de legenda para sua foto em **{destination}**:\n\n"
+        f"{post_ideas}\n\n"
+        f"💡 **Dica do Seven:** Basta copiar sua favorita e colar no Instagram/Facebook!"
+    )
+
+@tool
 def manage_trip_sharing(action: str, partner_whatsapp: str, confirmation_code: str, config: RunnableConfig) -> str:
     """
     Gerencia o compartilhamento de viagens entre usuários.
@@ -325,5 +355,6 @@ ALL_TOOLS = [
     analyze_data_usage_screenshot,
     provide_visual_navigation_map,
     manage_trip_sharing,
-    get_local_emergency_numbers
+    get_local_emergency_numbers,
+    generate_social_post
 ]

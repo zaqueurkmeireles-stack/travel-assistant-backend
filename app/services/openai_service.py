@@ -96,6 +96,20 @@ class OpenAIService:
         except Exception:
             return {"extracted_data": response}
 
+    def generate_social_caption(self, destination: str, description: str) -> str:
+        """Gera 3 opções de legendas (Criativa, Poética, Informativa) + Hashtags"""
+        messages = [
+            {
+                "role": "system", 
+                "content": "Você é um Social Media Manager de viagens de luxo. Gere 3 opções de legendas para Instagram/Facebook (Curta e impactante, Poética/Inspiradora e Informativa com dicas). Inclua emojis e 5-8 hashtags relevantes."
+            },
+            {
+                "role": "user", 
+                "content": f"Foto tirada em: {destination}\nDescrição da cena: {description}"
+            }
+        ]
+        return self.chat_completion(messages, temperature=0.8)
+
     def analyze_expense(self, expense_text: str) -> Dict:
         """
         Extrai valor e categoria de um gasto enviado pelo usuário

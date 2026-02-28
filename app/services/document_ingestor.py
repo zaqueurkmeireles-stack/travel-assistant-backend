@@ -5,6 +5,7 @@ Document Ingestor - Orquestra o download, parse e indexação de documentos no R
 import requests
 from app.services.rag_service import RAGService
 from app.services.trip_service import TripService
+from app.services.google_drive_service import GoogleDriveService
 from app.parsers.parser_factory import ParserFactory
 from loguru import logger
 from typing import Dict, Any, Optional
@@ -15,6 +16,7 @@ class DocumentIngestor:
     def __init__(self):
         self.rag_svc = RAGService()
         self.trip_svc = TripService()
+        self.drive_svc = GoogleDriveService()
         self.parser_factory = ParserFactory()
         logger.info("✅ DocumentIngestor inicializado")
         
@@ -47,8 +49,6 @@ class DocumentIngestor:
                 filename += ".png"
             
             # 2. Obter o conteúdo do arquivo
-            # No Evolution API, a mídia pode vir como base64 ou URL dependendo da config.
-            # Se vier base64 no campo 'base64':
             base64_data = data.get("base64")
             
             if base64_data:
@@ -56,9 +56,43 @@ class DocumentIngestor:
                 file_content = base64.b64decode(base64_data)
                 logger.info(f"📥 Arquivo recebido via Base64: {filename}")
             else:
-                # Se não vier base64, tentamos simular ou buscar via URL (se implementado no futuro)
                 logger.warning("Conteúdo binário não encontrado no payload (base64 vazio).")
                 return {"success": False, "error": "Conteúdo do arquivo não encontrado no webhook."}
+
+            # [NOVO] Se for imagem ou vídeo (não documento PDF/Docx), salvar no Google Drive
+            is_media = mimetype.startswith("image") or mimetype.startswith("video")
+            is_doc = mimetype in ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+            
+            drive_link = None
+            if is_media and not is_doc:
+                # Buscar trip ativa para saber o nome da pasta
+                from app.services.user_service import UserService
+                user_svc = UserService()
+                active_trip_id = user_svc.get_active_trip(sender_number)
+                trip_name = "Mídia Diversas"
+                
+                if active_trip_id:
+                    for t in self.trip_svc.trips:
+                        if t["id"] == active_trip_id:
+                            trip_name = t["destination"]
+                            break
+                
+                folder_id = self.drive_svc.get_trip_media_folder(sender_number, trip_name)
+                if folder_id:
+                    file_id = self.drive_svc.upload_file(file_content, filename, mimetype, folder_id)
+                    drive_link = f"https://drive.google.com/file/d/{file_id}/view"
+                    logger.info(f"📸 Mídia salva no Drive: {drive_link}")
+                
+                # Se for APENAS foto de viagem (sem texto de documento), podemos parar aqui ou 
+                # continuar se o usuário quiser análise de imagem via Gemini/Vision
+                if not any(ext in filename.lower() for ext in [".pdf", ".docx"]):
+                    return {
+                        "success": True, 
+                        "filename": filename, 
+                        "document_type": "media",
+                        "drive_link": drive_link,
+                        "message": "Foto/Vídeo salvo com sucesso na sua pasta da viagem no Google Drive!"
+                    }
             
             # 3. Parsear o texto
             parse_result = self.parser_factory.auto_parse(file_content, filename)

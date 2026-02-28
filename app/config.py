@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     CHROMA_DB_PATH: str = "./data/chroma_db"
     DOCUMENTS_PATH: str = "./data/documents"
     
+    # ============================================================
+    # GOOGLE DRIVE
+    # ============================================================
+    GOOGLE_DRIVE_CREDENTIALS_JSON: Optional[str] = None # JSON string or path to file
+    GOOGLE_DRIVE_ROOT_FOLDER_ID: Optional[str] = None
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

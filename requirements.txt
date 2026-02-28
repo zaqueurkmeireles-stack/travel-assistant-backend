@@ -50,3 +50,8 @@ loguru==0.7.3
 # Utilidades
 python-dateutil==2.9.0.post0
 typing-extensions==4.12.2
+
+# Google Drive
+google-api-python-client==2.155.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
