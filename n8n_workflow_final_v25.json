@@ -591,7 +591,7 @@
                 "options": {
                     "timeout": 15000
                 },
-                "headerParametersJson": "={{ JSON.stringify({ \"apikey\": $node['⚙️ Config - Pipeline 2'].json.apikey_evolution }) }}",
+                "headerParametersJson": "={{ JSON.stringify({ \"apikey\": $node['⚙️ Config - Pipeline 2'].json.apikey_evolution, \"Content-Type\": \"application/json\" }) }}",
                 "bodyParametersJson": "={{ JSON.stringify({ \"number\": ($json.body.telefone || '').toString().replace(/\\D/g, ''), \"text\": $json.body.mensagem }) }}",
                 "continueOnFail": true
             },
