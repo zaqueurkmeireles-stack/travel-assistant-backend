@@ -135,6 +135,20 @@ async def chat_endpoint(
                 return ChatResponse(success=True, response=resp, user_id=request.user_id)
         # --------------------------------------------------------------------
 
+        if role == "admin" and message_clean.lower().startswith("broadcast:"):
+            broadcast_msg = message_clean.split(":", 1)[1].strip()
+            if not broadcast_msg:
+                resp = "❌ Por favor, digite a mensagem após o 'broadcast:'"
+            else:
+                n8n = N8nService()
+                destinatarios = [uid for uid, data in user_service.users.items() if data.get("role") != "admin"]
+                results = n8n.broadcast_to_all(f"📢 *MENSAGEM DO SEVEN CONCIERGE*\n\n{broadcast_msg}", destinatarios)
+                resp = f"✅ Transmissão concluída!\nEnviado para {results['success']} usuários. Falhas: {results['failed']}."
+            
+            n8n = N8nService()
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
+            return ChatResponse(success=True, response=resp, user_id=request.user_id)
+
         if role == "admin" and (message_clean.lower() in ["ok", "sim"] or message_clean.lower().startswith("sim ")):
             if message_clean.lower() in ["ok", "sim"]:
                 # Pega o último pedido pendente
@@ -210,7 +224,13 @@ async def chat_endpoint(
             n8n = N8nService()
             
             # Msg para o convidado (Sempre responde)
-            guest_msg = "Olá! 👋 Sou o Seven Assistant Travel, o assistente virtual da família.\nVocê ainda não tem acesso à minha base.\n⏳ *Acabei de enviar uma solicitação para o Administrador.* Aguarde a liberação dele!"
+            guest_msg = (
+                "⭐️ **BEM-VINDO AO SEVEN ASSISTANT TRAVEL** ⭐️\n\n"
+                "Olá! Vejo que você é um convidado especial. Sou o assistente concierge exclusivo para viagens de elite.\n\n"
+                "Para garantir sua privacidade e segurança, o **Administrador** precisa autorizar seu acesso primeiro.\n"
+                "⏳ *Já enviei um pedido urgente para ele agora mesmo!* \n\n"
+                "Assim que ele liberar, estarei pronto para gerenciar seus documentos, voos e te guiar pelo mundo!"
+            )
             background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
             
             # Msg para o Admin se passou no Throttle

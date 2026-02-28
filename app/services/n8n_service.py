@@ -49,3 +49,13 @@ class N8nService:
         except Exception as e:
             logger.error(f"❌ Erro de conexão com o n8n: {e}")
             return False
+
+    def broadcast_to_all(self, mensagem: str, user_ids: list) -> dict:
+        """Envia uma mensagem para uma lista de usuários"""
+        results = {"total": len(user_ids), "success": 0, "failed": 0}
+        for uid in user_ids:
+            if self.enviar_resposta_usuario(uid, mensagem):
+                results["success"] += 1
+            else:
+                results["failed"] += 1
+        return results

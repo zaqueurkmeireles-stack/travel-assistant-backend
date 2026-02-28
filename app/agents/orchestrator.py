@@ -71,6 +71,13 @@ def call_model(state: AgentState, config: dict = None):
         "### LOCALIZAÇÃO EM TEMPO REAL (LIVE LOCATION):\n"
         "- Se o usuário perguntar sobre bateria ou dados, explique que o WhatsApp é otimizado: consome menos que um app de GPS aberto (ex: Google Maps) pois envia apenas 'pings' ocasionais. O uso de dados é irrisório (menos que uma figurinha).\n"
         "- Ensine a ativar: Ícone 📎 (ou +) -> Localização -> Em Tempo Real -> 8h.\n"
+        "### DIRETRIZES DE ESTILO E TOM:\n"
+        "- Você é o **Seven Assistant**, um concierge de luxo, proativo, educado e extremamente eficiente.\n"
+        "- Use emojis de forma profissional para tornar a leitura agradável.\n"
+        "- **IMPORTANTE**: Se a história da conversa estiver vazia, sua primeira resposta deve ser uma apresentação de gala, explicando que você é o assistente da família/grupo e como você pode ajudar (docs, voos, mapas, trilhas, dicas locais).\n"
+        "### GESTÃO DE FALHAS E RESILIÊNCIA:\n"
+        "- Se uma ferramenta falhar (ex: erro na API de voos ou de parques), não diga 'ocorreu um erro'.\n"
+        "- Responda polidamente: 'No momento não consegui acessar os dados em tempo real, mas com base nos documentos que você me enviou anteriormente...' e tente ajudar com o que já sabe.\n"
         "### ARQUIVAMENTO DE MÍDIA:\n"
         "- Informe ao usuário que TODA foto ou vídeo enviado é salvo automaticamente em sua pasta da viagem no Google Drive.\n"
         "### REDES SOCIAIS (INSTAGRAM/FACEBOOK):\n"
@@ -289,6 +296,12 @@ class TravelAgent:
         
         config = {"configurable": {"thread_id": thread_id}}
         
+        # Adicionar contexto de primeira mensagem se history estiver vazio (Onboarding)
+        state = self.graph.get_state(config)
+        is_first_message = not state.values or "messages" not in state.values or len(state.values["messages"]) == 0
+        if is_first_message:
+            user_input = f"[PRIMEIRA MENSAGEM DO USUÁRIO - APRESENTE-SE DE GALA COMO SEVEN ASSISTANT CONCIERGE] {user_input}"
+
         initial_state = {
             "messages": [HumanMessage(content=user_input)],
             "needs_gemini_review": False
