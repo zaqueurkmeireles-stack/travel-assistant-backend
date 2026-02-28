@@ -95,7 +95,7 @@ async def chat_endpoint(
             user_id="desconhecido"
         )
 
-    logger.info(f"📥 Nova mensagem de {request.user_id}: {request.message[:50]}...")
+    logger.info(f"📥 [RAW] Mensagem de {request.user_id}: {request.message[:50]}...")
     
     try:
         from app.services.user_service import UserService
@@ -104,6 +104,16 @@ async def chat_endpoint(
         # 🛡️ NORMALIZAÇÃO IMEDIATA (evita erros de prefixo 9 extra)
         original_user_id = request.user_id
         request.user_id = user_service.normalize_phone(request.user_id)
+        
+        if not request.user_id:
+            logger.error(f"❌ Erro crítico: user_id '{original_user_id}' inválido após normalização.")
+            return ChatResponse(
+                success=False,
+                response="Erro: Identificador de usuário inválido. Por favor, tente novamente.",
+                user_id="invalid"
+            )
+            
+        logger.info(f"👤 [NORMALIZADO] {request.user_id}")
         
         role = user_service.get_user_role(request.user_id)
         # Garantir que o comando "autorizar" funcione sempre

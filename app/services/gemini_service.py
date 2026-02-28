@@ -16,9 +16,10 @@ class GeminiService:
             self.llm = ChatGoogleGenerativeAI(
                 model="gemini-2.0-flash", 
                 google_api_key=settings.GOOGLE_GEMINI_API_KEY,
-                temperature=0.7
+                temperature=0.7,
+                max_retries=0 # 🛡️ Falha rápido para não travar o usuário
             )
-            logger.info("✅ Gemini Service inicializado")
+            logger.info("✅ Gemini Service inicializado (Retries desativados)")
         else:
             self.llm = None
             logger.warning("⚠️ Chave do Gemini não configurada.")

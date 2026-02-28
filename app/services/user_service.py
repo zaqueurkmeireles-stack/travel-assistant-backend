@@ -43,13 +43,15 @@ class UserService:
     def normalize_phone(self, phone: str) -> str:
         """
         Normaliza o número removendo o 9º dígito (Brasil) de forma robusta.
-        Aceita: "5541988368783", "554188368783", "+55 41 9...", etc.
-        Sempre retorna a versão de 12 dígitos para números BR.
         """
         if not phone: return ""
-        # Remove caracteres não numéricos
         p = "".join(filter(str.isdigit, str(phone)))
         
+        # 🛡️ ALERTA: Se o input tinha caracteres mas resultou em nada (ex: "undefined")
+        if not p and phone:
+            logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone}'")
+            return ""
+
         # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
         if p.startswith("55") and len(p) == 13:
             return p[:4] + p[5:]
