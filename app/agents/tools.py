@@ -110,7 +110,15 @@ def get_flight_status(flight_number: str, date: str = "") -> str:
     flight = get_flights_svc().get_flight_status(flight_number, date if date else None)
     
     if flight:
-        return f"Voo {flight['flight_number']} ({flight['airline']}): {flight['departure_airport']} -> {flight['arrival_airport']}. Status: {flight['status']}. Partida: {flight['departure_time']}, Chegada: {flight['arrival_time']}"
+        info = (
+            f"Voo {flight['flight_number']} ({flight['airline']}): {flight['departure_airport']} -> {flight['arrival_airport']}. "
+            f"Status: {flight['status']}. "
+            f"Partida: {flight['departure_time']}, Chegada: {flight['arrival_time']}. "
+        )
+        if flight.get("departure_gate"): info += f"Portão Partida: {flight['departure_gate']}. "
+        if flight.get("arrival_gate"): info += f"Portão Chegada: {flight['arrival_gate']}. "
+        if flight.get("baggage_belt"): info += f"Esteira de Bagagem: {flight['baggage_belt']}."
+        return info
     return f"Não foi possível obter status do voo {flight_number}"
 
 @tool

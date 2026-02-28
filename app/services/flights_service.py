@@ -39,14 +39,20 @@ class FlightsService:
             
             if response.status_code == 200 and len(data) > 0:
                 flight = data[0]
+                departure = flight.get("departure", {})
+                arrival = flight.get("arrival", {})
+                
                 return {
                     "flight_number": flight.get("number"),
                     "airline": flight.get("airline", {}).get("name"),
-                    "departure_airport": flight.get("departure", {}).get("airport", {}).get("iata"),
-                    "arrival_airport": flight.get("arrival", {}).get("airport", {}).get("iata"),
+                    "departure_airport": departure.get("airport", {}).get("iata"),
+                    "arrival_airport": arrival.get("airport", {}).get("iata"),
                     "status": flight.get("status"),
-                    "departure_time": flight.get("departure", {}).get("scheduledTime", {}).get("local"),
-                    "arrival_time": flight.get("arrival", {}).get("scheduledTime", {}).get("local")
+                    "departure_time": departure.get("scheduledTime", {}).get("local"),
+                    "arrival_time": arrival.get("scheduledTime", {}).get("local"),
+                    "departure_gate": departure.get("gate"),
+                    "arrival_gate": arrival.get("gate"),
+                    "baggage_belt": arrival.get("baggageBelt")
                 }
             else:
                 logger.warning(f"Voo não encontrado: {flight_number}")
