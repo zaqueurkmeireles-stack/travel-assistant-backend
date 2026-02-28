@@ -1,0 +1,1040 @@
+{
+    "name": "TravelCompanion AI - Fluxo Final V23 (Máxima Compatibilidade n8n Antigo)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "whatsapp-input",
+                "options": {}
+            },
+            "id": "node-webhook-entrada",
+            "name": "Webhook Entrada WhatsApp",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ],
+            "webhookId": "whatsapp-input"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.body.data?.key?.fromMe || $json.body.key?.fromMe || false }}",
+                            "value2": false
+                        },
+                        {
+                            "value1": "={{ ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || '').includes('@g.us') }}",
+                            "value2": false
+                        }
+                    ]
+                }
+            },
+            "id": "node-if-seguranca",
+            "name": "Filtro de Segurança (anti-loop e grupos)",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                300,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"ignored\" }",
+                "options": {}
+            },
+            "id": "node-respond-ignored",
+            "name": "Responder Ignored (bot/grupo)",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                500,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "url_media",
+                            "value": "http://travel-assistant-backend:8000/api/webhook/media"
+                        },
+                        {
+                            "name": "url_location",
+                            "value": "http://travel-assistant-backend:8000/webhook/whatsapp/location"
+                        },
+                        {
+                            "name": "url_chat",
+                            "value": "http://travel-assistant-backend:8000/api/chat"
+                        },
+                        {
+                            "name": "url_evolution",
+                            "value": "http://evolution-api:8080/message/sendText/Seven_Assistant"
+                        },
+                        {
+                            "name": "apikey_evolution",
+                            "value": "429683C4C977415CAAFCCE10F7D57E11"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-config",
+            "name": "⚙️ Config - URLs e Variáveis",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                500,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $('Webhook Entrada WhatsApp').item.json.body.data?.message?.documentMessage || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.imageMessage || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.audioMessage || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.videoMessage || $('Webhook Entrada WhatsApp').item.json.body.message?.documentMessage || $('Webhook Entrada WhatsApp').item.json.body.message?.imageMessage || $('Webhook Entrada WhatsApp').item.json.body.message?.audioMessage || $('Webhook Entrada WhatsApp').item.json.body.message?.videoMessage || '' }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ]
+                }
+            },
+            "id": "node-if-midia",
+            "name": "É Mídia?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                700,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "={{ $node['⚙️ Config - URLs e Variáveis'].json.url_media }}",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 30000
+                },
+                "headerParametersJson": "{ \"Content-Type\": \"application/json\" }",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })(), \"base64\": $('Webhook Entrada WhatsApp').item.json.body.data?.base64 || $('Webhook Entrada WhatsApp').item.json.body.base64 || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.base64 || '', \"filename\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.documentMessage?.fileName || $('Webhook Entrada WhatsApp').item.json.body.message?.documentMessage?.fileName || 'arquivo_midia', \"mimetype\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.documentMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.imageMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.audioMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.videoMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.message?.documentMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.message?.imageMessage?.mimetype || $('Webhook Entrada WhatsApp').item.json.body.message?.audioMessage?.mimetype || 'application/octet-stream', \"caption\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.imageMessage?.caption || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.videoMessage?.caption || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.documentMessage?.caption || $('Webhook Entrada WhatsApp').item.json.body.message?.imageMessage?.caption || $('Webhook Entrada WhatsApp').item.json.body.message?.videoMessage?.caption || $('Webhook Entrada WhatsApp').item.json.body.message?.documentMessage?.caption || '' }) }}",
+                "continueOnFail": true
+            },
+            "id": "node-http-midia",
+            "name": "Enviar Mídia p/ IA",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                900,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.error || $json.message || $json.error?.message }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ],
+                    "number": [
+                        {
+                            "value1": "={{ $response.statusCode || 200 }}",
+                            "operation": "largerEqual",
+                            "value2": 400
+                        }
+                    ]
+                },
+                "combinator": "or"
+            },
+            "id": "node-if-erro-midia",
+            "name": "Erro na Mídia?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "node_name",
+                            "value": "Enviar Mídia p/ IA"
+                        },
+                        {
+                            "name": "user_id",
+                            "value": "={{ (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })() }}"
+                        },
+                        {
+                            "name": "error_detail",
+                            "value": "={{ $json.error || $json.message || 'Erro HTTP/Conexão' }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-log-erro-midia",
+            "name": "Log Erro Mídia",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"error\", \"message\": \"falha ao processar midia\" }",
+                "options": {}
+            },
+            "id": "node-respond-error-midia",
+            "name": "Responder Erro Mídia",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1500,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"ok\" }",
+                "options": {}
+            },
+            "id": "node-respond-ok-midia",
+            "name": "Responder OK (Mídia)",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $('Webhook Entrada WhatsApp').item.json.body.data?.message?.locationMessage || $('Webhook Entrada WhatsApp').item.json.body.message?.locationMessage || '' }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ]
+                }
+            },
+            "id": "node-if-location",
+            "name": "É Localização?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                900,
+                450
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "={{ $node['⚙️ Config - URLs e Variáveis'].json.url_location }}",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 30000
+                },
+                "headerParametersJson": "{ \"Content-Type\": \"application/json\" }",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })(), \"latitude\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.locationMessage?.degreesLatitude || $('Webhook Entrada WhatsApp').item.json.body.message?.locationMessage?.degreesLatitude, \"longitude\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.locationMessage?.degreesLongitude || $('Webhook Entrada WhatsApp').item.json.body.message?.locationMessage?.degreesLongitude }) }}",
+                "continueOnFail": true
+            },
+            "id": "node-http-location",
+            "name": "Enviar Localização p/ IA",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.error || $json.message || $json.error?.message }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ],
+                    "number": [
+                        {
+                            "value1": "={{ $response.statusCode || 200 }}",
+                            "operation": "largerEqual",
+                            "value2": 400
+                        }
+                    ]
+                },
+                "combinator": "or"
+            },
+            "id": "node-if-erro-location",
+            "name": "Erro na Localização?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "node_name",
+                            "value": "Enviar Localização p/ IA"
+                        },
+                        {
+                            "name": "user_id",
+                            "value": "={{ (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })() }}"
+                        },
+                        {
+                            "name": "error_detail",
+                            "value": "={{ $json.error || $json.message || 'Erro HTTP/Conexão' }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-log-erro-location",
+            "name": "Log Erro Localização",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1500,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"error\", \"message\": \"falha ao processar localizacao\" }",
+                "options": {}
+            },
+            "id": "node-respond-error-location",
+            "name": "Responder Erro Localização",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1700,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"ok\" }",
+                "options": {}
+            },
+            "id": "node-respond-ok-location",
+            "name": "Responder OK (Localização)",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1500,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "={{ $node['⚙️ Config - URLs e Variáveis'].json.url_chat }}",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 60000
+                },
+                "headerParametersJson": "{ \"Content-Type\": \"application/json\" }",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })(), \"message\": $('Webhook Entrada WhatsApp').item.json.body.data?.message?.conversation || $('Webhook Entrada WhatsApp').item.json.body.data?.message?.extendedTextMessage?.text || $('Webhook Entrada WhatsApp').item.json.body.message?.conversation || $('Webhook Entrada WhatsApp').item.json.body.message?.extendedTextMessage?.text || '' }) }}",
+                "continueOnFail": true
+            },
+            "id": "node-http-texto",
+            "name": "Enviar Texto p/ IA",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.error || $json.message || $json.error?.message }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ],
+                    "number": [
+                        {
+                            "value1": "={{ $response.statusCode || 200 }}",
+                            "operation": "largerEqual",
+                            "value2": 400
+                        }
+                    ]
+                },
+                "combinator": "or"
+            },
+            "id": "node-if-erro-texto",
+            "name": "Erro no Texto?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "node_name",
+                            "value": "Enviar Texto p/ IA"
+                        },
+                        {
+                            "name": "user_id",
+                            "value": "={{ (() => { const jid = $('Webhook Entrada WhatsApp').item.json.body.data?.key?.remoteJid || $('Webhook Entrada WhatsApp').item.json.body.key?.remoteJid; return jid ? jid.split('@')[0] : 'desconhecido'; })() }}"
+                        },
+                        {
+                            "name": "error_detail",
+                            "value": "={{ $json.error || $json.message || 'Erro HTTP/Conexão' }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-log-erro-texto",
+            "name": "Log Erro Texto",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1500,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"error\", \"message\": \"falha ao processar texto\" }",
+                "options": {}
+            },
+            "id": "node-respond-error-texto",
+            "name": "Responder Erro Texto",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1700,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"ok\" }",
+                "options": {}
+            },
+            "id": "node-respond-ok-texto",
+            "name": "Responder OK (Texto)",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1500,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "ia-response",
+                "options": {}
+            },
+            "id": "node-webhook-resposta",
+            "name": "Webhook Resposta IA",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                100,
+                950
+            ],
+            "webhookId": "ia-response"
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "url_evolution",
+                            "value": "http://evolution-api:8080/message/sendText/Seven_Assistant"
+                        },
+                        {
+                            "name": "apikey_evolution",
+                            "value": "429683C4C977415CAAFCCE10F7D57E11"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-config-pipeline-2",
+            "name": "⚙️ Config - Pipeline 2",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                300,
+                950
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.body?.telefone !== undefined && $json.body?.telefone !== '' && $json.body?.mensagem !== undefined && $json.body?.mensagem !== '' }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "id": "node-if-payload-valido",
+            "name": "Payload Válido?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                500,
+                950
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "error_message",
+                            "value": "Payload inválido recebido da IA — campos telefone ou mensagem ausentes"
+                        },
+                        {
+                            "name": "node_name",
+                            "value": "Payload Válido?"
+                        },
+                        {
+                            "name": "payload_recebido",
+                            "value": "={{ JSON.stringify($json.body) }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-log-payload-invalido",
+            "name": "Log Payload Inválido",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                700,
+                850
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"error\", \"message\": \"payload invalido\" }",
+                "options": {}
+            },
+            "id": "node-respond-payload-invalido",
+            "name": "Responder Payload Inválido",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                900,
+                850
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "={{ $node['⚙️ Config - Pipeline 2'].json.url_evolution }}",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 15000
+                },
+                "headerParametersJson": "={{ JSON.stringify({ \"Content-Type\": \"application/json\", \"apikey\": $node['⚙️ Config - Pipeline 2'].json.apikey_evolution }) }}",
+                "bodyParametersJson": "={{ JSON.stringify({ \"number\": typeof $json.body.telefone === 'string' ? $json.body.telefone.replace(/\\D/g, '') : $json.body.telefone, \"text\": $json.body.mensagem }) }}",
+                "continueOnFail": true
+            },
+            "id": "node-http-evolution-send",
+            "name": "Enviar WhatsApp (Evolution)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                700,
+                1050
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.error || $json.message || $json.error?.message }}",
+                            "operation": "notEqual",
+                            "value2": ""
+                        }
+                    ],
+                    "number": [
+                        {
+                            "value1": "={{ $response.statusCode || 200 }}",
+                            "operation": "largerEqual",
+                            "value2": 400
+                        }
+                    ]
+                },
+                "combinator": "or"
+            },
+            "id": "node-if-erro-evolution",
+            "name": "Erro no Evolution?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                900,
+                1050
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "node_name",
+                            "value": "Enviar WhatsApp (Evolution)"
+                        },
+                        {
+                            "name": "telefone",
+                            "value": "={{ $('Webhook Resposta IA').item.json.body.telefone || 'desconhecido' }}"
+                        },
+                        {
+                            "name": "error_detail",
+                            "value": "={{ $json.error || $json.message || 'Erro HTTP/Conexão' }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-log-erro-evolution",
+            "name": "Log Erro Evolution",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                950
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"error\", \"message\": \"falha ao enviar whatsapp\" }",
+                "options": {}
+            },
+            "id": "node-respond-error-evolution",
+            "name": "Responder Erro Evolution",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                950
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "status",
+                            "value": "enviado_com_sucesso"
+                        },
+                        {
+                            "name": "timestamp",
+                            "value": "={{ new Date().toISOString() }}"
+                        },
+                        {
+                            "name": "telefone",
+                            "value": "={{ $('Webhook Resposta IA').item.json.body.telefone }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "node-envio-concluido",
+            "name": "✅ Envio Concluído",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                1150
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"ok\", \"message\": \"mensagem enviada com sucesso\" }",
+                "options": {}
+            },
+            "id": "node-respond-ok-final",
+            "name": "Responder OK (Sucesso Final)",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                1150
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Entrada WhatsApp": {
+            "main": [
+                [
+                    {
+                        "node": "Filtro de Segurança (anti-loop e grupos)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filtro de Segurança (anti-loop e grupos)": {
+            "main": [
+                [
+                    {
+                        "node": "⚙️ Config - URLs e Variáveis",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder Ignored (bot/grupo)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "⚙️ Config - URLs e Variáveis": {
+            "main": [
+                [
+                    {
+                        "node": "É Mídia?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "É Mídia?": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar Mídia p/ IA",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "É Localização?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar Mídia p/ IA": {
+            "main": [
+                [
+                    {
+                        "node": "Erro na Mídia?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Erro na Mídia?": {
+            "main": [
+                [
+                    {
+                        "node": "Log Erro Mídia",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder OK (Mídia)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Erro Mídia": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Erro Mídia",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "É Localização?": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar Localização p/ IA",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar Texto p/ IA",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar Localização p/ IA": {
+            "main": [
+                [
+                    {
+                        "node": "Erro na Localização?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Erro na Localização?": {
+            "main": [
+                [
+                    {
+                        "node": "Log Erro Localização",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder OK (Localização)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Erro Localização": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Erro Localização",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar Texto p/ IA": {
+            "main": [
+                [
+                    {
+                        "node": "Erro no Texto?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Erro no Texto?": {
+            "main": [
+                [
+                    {
+                        "node": "Log Erro Texto",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder OK (Texto)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Erro Texto": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Erro Texto",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Resposta IA": {
+            "main": [
+                [
+                    {
+                        "node": "⚙️ Config - Pipeline 2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "⚙️ Config - Pipeline 2": {
+            "main": [
+                [
+                    {
+                        "node": "Payload Válido?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Payload Válido?": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar WhatsApp (Evolution)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Log Payload Inválido",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Payload Inválido": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Payload Inválido",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar WhatsApp (Evolution)": {
+            "main": [
+                [
+                    {
+                        "node": "Erro no Evolution?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Erro no Evolution?": {
+            "main": [
+                [
+                    {
+                        "node": "Log Erro Evolution",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "✅ Envio Concluído",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Erro Evolution": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Erro Evolution",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "✅ Envio Concluído": {
+            "main": [
+                [
+                    {
+                        "node": "Responder OK (Sucesso Final)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "errorWorkflow": ""
+    },
+    "meta": {
+        "templateCredsSetupCompleted": false
+    },
+    "tags": []
+}
