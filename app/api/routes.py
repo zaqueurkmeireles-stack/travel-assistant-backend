@@ -14,6 +14,7 @@ from app.parsers.parser_factory import ParserFactory
 from app.agents.orchestrator import TravelAgent
 from app.services.document_ingestor import DocumentIngestor
 from app.services.n8n_service import N8nService
+from app.config import settings
 
 router = APIRouter()
 

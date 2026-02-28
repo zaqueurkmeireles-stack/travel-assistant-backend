@@ -302,7 +302,7 @@ class TravelAgent:
         
         # Adicionar contexto de primeira mensagem se history estiver vazio (Onboarding)
         state = self.graph.get_state(config)
-        is_first_message = not state.values or "messages" not in state.values or len(state.values["messages"]) == 0
+        is_first_message = not state or not state.values or "messages" not in state.values or len(state.values["messages"]) == 0
         if is_first_message:
             user_input = f"[PRIMEIRA MENSAGEM DO USUÁRIO - APRESENTE-SE DE GALA COMO SEVEN ASSISTANT CONCIERGE] {user_input}"
 
