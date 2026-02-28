@@ -31,5 +31,8 @@ class ParserFactory:
         elif any(word in filename_lower or word in hint_lower for word in ['hotel', 'reservation', 'booking', 'hospedagem', 'reserva']):
             return self.hotel_parser.parse(file_content, filename)
         
+        elif any(word in filename_lower or word in hint_lower for word in ['evento', 'event', 'f1', 'formula 1', 'show', 'concert', 'festival', 'ingresso']):
+            return self.document_parser.parse(file_content, filename, "evento")
+        
         else:
             return self.document_parser.parse(file_content, filename, document_hint or "documento de viagem")

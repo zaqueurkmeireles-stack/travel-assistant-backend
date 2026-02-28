@@ -111,6 +111,34 @@ class GeolocationService:
                     self.trip_svc._save_trips()
                     return guide_message
             
+            # 5. VERIFICAÇÃO DE EVENTO (F1, Shows, Festivais)
+            # Se a viagem ativa for um evento e for hoje, verificar proximidade com o venue
+            event_venue = active_trip.get("venue")
+            event_name = active_trip.get("event_name")
+            
+            if event_venue and event_name:
+                venue_loc = self.maps_svc.geocode(event_venue)
+                if venue_loc:
+                    dist_to_event = self._calculate_distance(lat, lng, venue_loc["lat"], venue_loc["lng"])
+                    
+                    if dist_to_event <= self.PARK_RADIUS_KM: # Usamos o mesmo raio de 500m
+                        logger.info(f"🏎️ USUÁRIO NO EVENTO: {event_name}! (Dist: {dist_to_event:.2f}km)")
+                        
+                        # Cooldown para guia de evento (6 horas)
+                        last_event_guide = active_trip.get("last_event_guide_sent_at")
+                        should_send_event = True
+                        if last_event_guide:
+                            try:
+                                last_dt = datetime.fromisoformat(last_event_guide)
+                                if (datetime.now() - last_dt).total_seconds() < 21600:
+                                    should_send_event = False
+                            except: pass
+                            
+                        if should_send_event:
+                            active_trip["last_event_guide_sent_at"] = datetime.now().isoformat()
+                            self.trip_svc._save_trips()
+                            return self._trigger_event_mode_guide(event_name, event_venue, active_trip.get("gate"), user_id)
+            
         # Se saiu do parque, remover a flag
         if "current_park_id" in active_trip:
             # Só remove se estiver realmente longe (histerese de 1km)
@@ -138,6 +166,28 @@ class GeolocationService:
             "1. Chame a ferramenta 'get_park_live_status' para o parque atual.\n"
             "2. Analise os tempos e sugira uma rota inteligente (quais brinquedos ir agora e quais evitar).\n"
             "3. Deseje um dia mágico e lembre que você pode guiá-lo pelo mapa se ele se perder."
+        )
+        
+        msg = agent.chat(user_input=prompt, thread_id=user_id)
+        return msg
+
+    def _trigger_event_mode_guide(self, event_name: str, venue: str, gate: str, user_id: str) -> str:
+        """Gera um guia proativo para o evento usando pesquisa web"""
+        logger.info(f"🏎️ Gerando Guia de Evento para {event_name}...")
+        
+        from app.agents.orchestrator import TravelAgent
+        agent = TravelAgent()
+        
+        gate_info = f"Seu portão é o '{gate}'." if gate else "Não encontrei seu portão no ingresso, verifique a placa."
+        
+        prompt = (
+            f"O usuário acaba de chegar no local do evento: **{event_name}** ({venue}). "
+            f"{gate_info}\n\n"
+            "Sua missão é dar as boas-vindas e ser o concierge dele durante o evento:\n"
+            "1. Use a ferramenta 'get_event_venue_details' para pesquisar o layout atual do local.\n"
+            "2. Informe onde ficam os banheiros, praças de alimentação e postos médicos mais próximos do portão dele.\n"
+            "3. Verifique o clima local e dê um conselho (ex: 'Pode chover, use capa' ou 'Está muito sol, beba água').\n"
+            "4. Deseje uma excelente experiência e diga que pode guiá-lo pelo mapa interno se ele se perder."
         )
         
         msg = agent.chat(user_input=prompt, thread_id=user_id)

@@ -62,9 +62,12 @@ class TripService:
             "start_date": start_date,
             "end_date": doc_data.get("end_date"),
             "confirmation_code": doc_data.get("confirmation_code"),
-            "flight_number": doc_data.get("flight_number"), # Extraído do doc
-            "alerts_sent": [], # Lista de tipos de alertas já enviados: ["D-7", "D-1", "D-0"]
-            "landing_alert_sent": False, # Flag para o Landing Monitor
+            "flight_number": doc_data.get("flight_number"), 
+            "event_name": doc_data.get("event_name"), # Novo: Para F1/Shows
+            "venue": doc_data.get("venue"),           # Novo: Local do evento
+            "gate": doc_data.get("gate"),             # Novo: Portão de acesso em eventos
+            "alerts_sent": [], 
+            "landing_alert_sent": False, 
             "created_at": datetime.now().isoformat()
         }
         

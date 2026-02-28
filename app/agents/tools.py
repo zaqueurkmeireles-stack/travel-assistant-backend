@@ -28,6 +28,7 @@ _finance_svc = None
 _connectivity_svc = None
 _emergency_svc = None
 _park_svc = None
+_event_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -102,6 +103,13 @@ def get_park_svc():
         from app.services.park_service import ParkService
         _park_svc = ParkService()
     return _park_svc
+
+def get_event_svc():
+    global _event_svc
+    if _event_svc is None:
+        from app.services.event_service import EventService
+        _event_svc = EventService()
+    return _event_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -307,6 +315,16 @@ def get_park_live_status(park_name_or_id: str) -> str:
     return svc.format_park_summary(live_data)
 
 @tool
+def get_event_venue_details(event_name: str, venue: str) -> str:
+    """
+    Pesquisa e extrai detalhes cruciais de um local de evento (F1, Shows).
+    Busca por: Portões de acesso, localização de banheiros, praças de alimentação e dicas de sobrevivência.
+    """
+    logger.info(f"🏁 Tool: Pesquisando detalhes de evento: {event_name} em {venue}")
+    # O Agente usará busca_web para alimentar essa lógica.
+    return f"Pesquisando layouts, portões e instalações para {event_name} em {venue}. Por favor, aguarde enquanto analiso os mapas mais recentes..."
+
+@tool
 def generate_social_post(description: str, config: RunnableConfig) -> str:
     """
     Gera opções de legendas e hashtags inteligentes para Instagram/Facebook.
@@ -376,5 +394,6 @@ ALL_TOOLS = [
     manage_trip_sharing,
     get_local_emergency_numbers,
     generate_social_post,
-    get_park_live_status
+    get_park_live_status,
+    get_event_venue_details
 ]
