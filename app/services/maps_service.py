@@ -68,6 +68,20 @@ class GoogleMapsService:
             logger.error(f"Erro ao buscar lugares: {e}")
             return []
     
+    def get_static_map_url(self, lat: float, lng: float, zoom: int = 15, size: str = "600x400") -> str:
+        """Gera URL para o Google Static Maps (Ideal para economia de dados)"""
+        return (
+            f"https://maps.googleapis.com/maps/api/staticmap?"
+            f"center={lat},{lng}&zoom={zoom}&size={size}&"
+            f"markers=color:red%7C{lat},{lng}&key={self.api_key}"
+        )
+
+    def get_location_map_link(self, location_name: str) -> str:
+        """Gera link universal de busca/navegação do Google Maps"""
+        import urllib.parse
+        encoded_name = urllib.parse.quote(location_name)
+        return f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+    
     def get_directions(self, origin: str, destination: str, mode: str = "driving") -> Optional[Dict]:
         """Obtém direções entre dois pontos"""
         try:

@@ -99,6 +99,11 @@ async def chat_endpoint(
     try:
         from app.services.user_service import UserService
         user_service = UserService()
+        
+        # 🛡️ NORMALIZAÇÃO IMEDIATA (evita erros de prefixo 9 extra)
+        original_user_id = request.user_id
+        request.user_id = user_service.normalize_phone(request.user_id)
+        
         role = user_service.get_user_role(request.user_id)
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
@@ -142,28 +147,42 @@ async def chat_endpoint(
                     background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                     return ChatResponse(success=True, response=msg, user_id=request.user_id)
                 
-                # Pega o pedido mais recente (ordenando pelos timestamps ISO)
+                # Pega o pedido mais recente
                 guest_id = sorted(pending_requests.items(), key=lambda x: x[1], reverse=True)[0][0]
             else:
                 parts = message_clean.split(maxsplit=1)
-                guest_id = parts[1].replace("+", "").strip()
+                guest_id = user_service.normalize_phone(parts[1])
 
             active_trip = user_service.get_active_trip(request.user_id)
-            success = False
             
+            # 🛡️ FALLBACK: Se o admin não tem viagem ativa setada, mas existe uma única viagem registrada para ele
+            if not active_trip:
+                from app.services.trip_service import TripService
+                trip_svc = TripService()
+                admin_trips = [t for t in trip_svc.trips if t["user_id"] == request.user_id]
+                if len(admin_trips) == 1:
+                    active_trip = admin_trips[0]["id"]
+                    user_service.set_active_trip(request.user_id, active_trip)
+                    logger.info(f"🔄 Fallback: Ativando única viagem encontrada '{active_trip}' para o admin.")
+
+            success_trip_id = None
             if active_trip:
-                success = user_service.authorize_guest(request.user_id, guest_id, active_trip)
+                success_trip_id = user_service.authorize_guest(request.user_id, guest_id, active_trip)
             
-            if success:
-                msg_admin = f"✅ Contato {guest_id} autorizado para a sua viagem ativa '{active_trip}'!"
-                msg_guest = f"🎉 Olá! O Administrador acabou de liberar o seu acesso para a viagem '{active_trip}'.\nEu sou o Seven Assistant Travel. Me envie os documentos (passagens, reservas) para começarmos!"
+            if success_trip_id:
+                msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
+                msg_guest = (
+                    f"🎉 Olá! O Administrador liberou seu acesso. Eu sou o *Seven Assistant Travel*. "
+                    f"Posso te ajudar a organizar roteiros, passagens e reservas, além de dar dicas proativas durante sua viagem!\n\n"
+                    f"Para começar, me envie o seu *roteiro* (mesmo que seja apenas um rascunho com datas e local) para que eu possa planejar tudo pra você!"
+                )
                 
                 n8n = N8nService()
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
                 background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
                 return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
             else:
-                msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa (RAG) cadastrada?"
+                msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa cadastrada ou documento enviado?"
                 n8n = N8nService()
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
@@ -190,15 +209,15 @@ async def chat_endpoint(
             should_notify_admin = user_service.register_access_request(request.user_id)
             n8n = N8nService()
             
-            # Msg para o convidado
+            # Msg para o convidado (Sempre responde)
             guest_msg = "Olá! 👋 Sou o Seven Assistant Travel, o assistente virtual da família.\nVocê ainda não tem acesso à minha base.\n⏳ *Acabei de enviar uma solicitação para o Administrador.* Aguarde a liberação dele!"
             background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
             
-            # Mg para o Admin se passou no Throttle
+            # Msg para o Admin se passou no Throttle
             if should_notify_admin:
                 admin_number = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
                 if admin_number:
-                    admin_msg = f"⚠️ *Pedido de Acesso!*\nO contato `{request.user_id}` enviou uma mensagem pedindo para usar o robô.\n\nPara autorizar na viagem atual, responda:\n`sim {request.user_id}`"
+                    admin_msg = f"⚠️ *Pedido de Acesso!*\n\"o numero {request.user_id}\" esta tentando conversar com o assistente de viagens, voce confirma?\n\nPara autorizar, responda:\n`sim {request.user_id}`"
                     background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
                     logger.info(f"🔔 Admin notificado sobre a tentativa de {request.user_id}")
             
@@ -314,7 +333,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             preview = result.get("text_preview", "")
             
             def send_confirmation_and_gap_analysis():
-                """Confirma recebimento e analisa documentos faltantes"""
+                """Confirma recebimento, analisa documentos faltantes e oferece compartilhamento"""
                 try:
                     n8n = N8nService()
                     
@@ -342,7 +361,6 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                         if any(w in name_lower for w in ["carro", "car", "rental", "locação", "locadora"]):
                             doc_types_found.add("carro")
                     
-                    # Também considerar o tipo do documento atual
                     if doc_type:
                         doc_types_found.add(doc_type.lower())
                     
@@ -368,6 +386,30 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                     
                     n8n.enviar_resposta_usuario(request.user_id, confirm_msg)
                     logger.info(f"✅ Confirmação + gap analysis enviada para {request.user_id}")
+                    
+                    # 3. [NOVO] Oferta de Compartilhamento de Viagem (Shared RAG)
+                    trip_match = result.get("trip_match")
+                    if trip_match:
+                        host_id = trip_match["host_user_id"]
+                        dest = trip_match["destination"]
+                        date = trip_match["start_date"]
+                        
+                        share_msg = (
+                            f"🔗 *Viagem em Grupo Detectada!*\\n"
+                            f"Notei que o usuário `{host_id}` também tem uma viagem para *{dest}* em *{date}*.\\n\\n"
+                            "Deseja compartilhar seus documentos com ele para que eu possa guiar vocês dois juntos?\\n"
+                            "Responda: *sim compartilhar*"
+                        )
+                        # Salva a intenção pendente para o comando simplificado
+                        user_service.set_pending_trip_link(
+                            guest_id=request.user_id,
+                            host_user_id=host_id,
+                            trip_id=trip_match["trip_id"],
+                            destination=dest,
+                            start_date=date
+                        )
+                        n8n.enviar_resposta_usuario(request.user_id, share_msg)
+                        logger.info(f"🔗 Oferta de compartilhamento enviada para {request.user_id}")
                     
                 except Exception as e:
                     logger.error(f"❌ Erro ao enviar confirmação: {e}")
@@ -412,11 +454,15 @@ async def location_webhook(request: LocationRequest, agent: TravelAgent = Depend
             f"SISTEMA: O usuário acabou de chegar em: {geo_info}. "
             f"Coordenadas: {request.latitude}, {request.longitude}. "
             f"DATA DE HOJE: {today_str}.\n"
-            f"Analise os documentos dele (RAG) e, se ele estiver em um aeroporto, cidade de escala ou destino final "
-            f"da viagem agendada para HOJE ou amanhã, gere uma mensagem PROATIVA de guia. "
-            f"Diga onde ele está, o que ele tem que fazer a seguir (ex: imigração, pegar malas) "
-            f"e ofereça as opções de economia de dados. "
-            f"Se ele não estiver em local relevante para a viagem, responda apenas 'IGNORE'."
+            f"Analise os documentos dele (RAG) e, se ele estiver em um aeroporto (partida ou escala) ou destino final "
+            f"da viagem agendada para HOJE ou amanhã, gere uma mensagem PROATIVA de guia.\n\n"
+            "DIRETRIZES:\n"
+            "1. Diga onde ele está e o que ele tem que fazer a seguir (ex: 'Bem-vindo! Você chegou ao Terminal 2').\n"
+            "2. Se ele estiver chegando no destino, mencione Locadora de Carros ou Hotel (se houver no RAG).\n"
+            "3. Você DEVE oferecer o link de navegação usando a ferramenta 'provide_visual_navigation_map' "
+            "para o próximo ponto lógico (ex: Hertz Rental, Uber area, ou Hotel).\n"
+            "4. Mencione explicitamente que ele pode salvar o mapa para USO OFFLINE e economizar dados.\n"
+            "5. Se ele não estiver em local relevante, responda apenas 'IGNORE'."
         )
         
         response = agent.chat(user_input=prompt, thread_id=request.user_id)

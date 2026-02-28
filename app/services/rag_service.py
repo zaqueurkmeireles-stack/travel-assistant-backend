@@ -83,6 +83,36 @@ class RAGService:
             logger.error(f"❌ Erro ao remover docs antigos: {e}")
             return 0
 
+    def delete_data_by_trip(self, trip_id: str) -> int:
+        """Remove TODOS os documentos vinculados a uma viagem específica (Cleanup)."""
+        try:
+            self._load_data()
+            if not self.documents:
+                return 0
+            
+            indices_to_remove = [
+                i for i, doc in enumerate(self.documents) 
+                if doc["metadata"].get("trip_id") == trip_id
+            ]
+            
+            if not indices_to_remove:
+                return 0
+                
+            for i in sorted(indices_to_remove, reverse=True):
+                self.documents.pop(i)
+                if len(self.vectors) > 1:
+                    self.vectors = np.delete(self.vectors, i, axis=0)
+                else:
+                    self.vectors = np.array([])
+            
+            self._save_data()
+            logger.info(f"🧹 Cleanup: {len(indices_to_remove)} documentos removidos da trip {trip_id}")
+            return len(indices_to_remove)
+        except Exception as e:
+            logger.error(f"❌ Erro no cleanup da trip {trip_id}: {e}")
+            return 0
+
+
     def add_document(self, text: str, metadata: Dict[str, Any]):
         """Gera embedding e adiciona o documento à base"""
         try:

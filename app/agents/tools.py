@@ -242,15 +242,22 @@ def provide_visual_navigation_map(place_description: str, config: RunnableConfig
     from app.services.maps_service import GoogleMapsService
     maps = GoogleMapsService()
     
-    # Tentar identificar se temos localização atual no contexto ou se a IA deduzir
-    # Por segurança, geramos o link de busca que funciona bem no mobile
+    # 1. Link de navegação real
     link = maps.get_location_map_link(place_description)
     
+    # 2. Tentar geocodificar para obter um mapa estático (economia de dados)
+    static_map_section = ""
+    location = maps.geocode(place_description)
+    if location:
+        static_url = maps.get_static_map_url(location['lat'], location['lng'])
+        static_map_section = f"🖼️ **Mapa de Visualização Rápida (Economia de Dados):**\n{static_url}\n\n"
+    
     return (
-        f"🗺️ **Mapa de Navegação Visual para: {place_description}**\n\n"
-        f"Clique no link abaixo para abrir o mapa interativo e seguir as instruções passo a passo no seu celular:\n"
-        f"🔗 [ABRIR MAPA NO GOOGLE MAPS]({link})\n\n"
-        f"*Dica: Use o modo 'Caminhada' para navegar dentro do terminal.*"
+        f"🗺️ **Guia de Navegação: {place_description}**\n\n"
+        f"{static_map_section}"
+        f"Clique no link abaixo para abrir a navegação passo a passo:\n"
+        f"🔗 [ABRIR NO GOOGLE MAPS]({link})\n\n"
+        f"💡 **Dica de Viagem:** Para economizar dados, você pode carregar este mapa agora enquanto tem internet ou baixar a área offline no Google Maps (Menu -> Mapas Offline)."
     )
 
 @tool

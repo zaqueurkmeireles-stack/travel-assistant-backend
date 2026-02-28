@@ -43,8 +43,15 @@ class SchedulerService:
                 id="trip_health_audit",
                 replace_existing=True
             )
+            # RAG Cleanup - 03:00 da manhã
+            self.scheduler.add_job(
+                self.cleanup_expired_trips,
+                trigger=CronTrigger(hour=3, minute=0),
+                id="rag_cleanup",
+                replace_existing=True
+            )
             self.scheduler.start()
-            logger.info("⏰ Scheduler iniciado (Rodando verificação de alertas e auditoria)")
+            logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
     def check_and_send_alerts(self):
         """Verifica quais viagens precisam de alerta hoje"""
@@ -95,12 +102,13 @@ class SchedulerService:
             f"Sua missão é gerar uma mensagem de WhatsApp extremamente útil, carinhosa e proativa baseada nos documentos dele no RAG.\n\n"
             "DIRETRIZES POR TIPO:\n"
             "- **D-7 (Uma semana antes)**: Anime o usuário! Mencione se falta algum documento (gap analysis). "
-            "Pesquise se o destino (ou paradas intermediárias como Portugal/Europa) exige vistos/ETIAS e avise proativamente.\n"
-            "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN. "
-            "Dê os CÓDIGOS DE RESERVA (localizadores) de todos os viajantes que encontrar.\n"
-            "- **D-0 (Dia da Viagem)**: Comemore! 'Seu dia chegou!'. Informe o TERMINAL e o GUICHÊ DE CHECK-IN (se encontrar nos docs). "
-            "Dê uma dica de como chegar ao aeroporto ou onde fica o guichê (ex: 'Vá até o guichê da TAP no Terminal 2').\n\n"
-            "MUITO IMPORTANTE: Use apenas informações reais que encontrar no RAG. Se não encontrar o guichê, peça para ele verificar no painel mas diga o terminal."
+            "Pesquise se o destino (ou paradas intermediárias como Portugal/Europa) exige vistos ou ETIAS e avise proativamente "
+            "(ex: 'Lembre-se que para entrar em Portugal você precisará de...').\n"
+            "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN AGORA. "
+            "Busque e liste os **CÓDIGOS DE RESERVA (Localizadores/Pax Locator)** de todos os viajantes que encontrar nos documentos.\n"
+            "- **D-0 (Dia da Viagem)**: Comemore! 'Seu dia chegou!'. Informe o **TERMINAL de partida** e, se possível, o numero do **GUICHÊ DE CHECK-IN** (ex: 'Vá até o guichê da TAP no Terminal 2, corredor C'). "
+            "Ofereça ajuda com o checklist final de malas e pergunte se ele quer um mapa do aeroporto.\n\n"
+            "MUITO IMPORTANTE: Use apenas informações reais que encontrar no RAG. Se não encontrar o guichê, peça para ele verificar no painel ou pergunte ao balcão, mas sempre dê o terminal/empresa."
         )
         
         try:
@@ -154,3 +162,42 @@ class SchedulerService:
                 with open(conn_db, 'w', encoding='utf-8') as f:
                     json.dump(plans, f, indent=2)
                 logger.info(f"🚨 Alerta de 10% enviado para {user_id}")
+
+    def cleanup_expired_trips(self):
+        """Remove dados de RAG e viagens do banco 2 dias após o término."""
+        from app.services.rag_service import RAGService
+        from datetime import timedelta
+        
+        logger.info("🧹 Verificando limpeza de viagens expiradas (2 dias pós-término)...")
+        rag_svc = RAGService()
+        today = datetime.now().date()
+        
+        deleted_count = 0
+        trips_to_keep = []
+        
+        for trip in self.trip_svc.trips:
+            trip_id = trip["id"]
+            end_date_str = trip.get("end_date")
+            
+            if not end_date_str:
+                trips_to_keep.append(trip)
+                continue
+                
+            try:
+                end_dt = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                expiration_dt = end_dt + timedelta(days=2)
+                
+                if today > expiration_dt:
+                    logger.warning(f"🚮 Viagem {trip_id} expirada (término {end_date_str}). Removendo dados...")
+                    rag_svc.delete_data_by_trip(trip_id)
+                    deleted_count += 1
+                else:
+                    trips_to_keep.append(trip)
+            except Exception as e:
+                logger.error(f"Erro ao processar data de expiração para trip {trip_id}: {e}")
+                trips_to_keep.append(trip)
+        
+        if deleted_count > 0:
+            self.trip_svc.trips = trips_to_keep
+            self.trip_svc._save_trips()
+            logger.info(f"✨ Limpeza concluída: {deleted_count} viagem(ns) removida(s).")

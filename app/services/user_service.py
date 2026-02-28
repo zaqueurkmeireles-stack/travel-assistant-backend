@@ -41,12 +41,19 @@ class UserService:
             logger.error(f"Erro ao salvar usuários: {e}")
 
     def normalize_phone(self, phone: str) -> str:
-        """Normaliza o número removendo o 9º dígito (Brasil) se existir para manter consistência."""
+        """
+        Normaliza o número removendo o 9º dígito (Brasil) de forma robusta.
+        Aceita: "5541988368783", "554188368783", "+55 41 9...", etc.
+        Sempre retorna a versão de 12 dígitos para números BR.
+        """
         if not phone: return ""
-        p = phone.replace("@s.whatsapp.net", "").replace("+", "").strip()
-        # Se for BR (+55) e tiver 13 dígitos (ex: 55 41 9 88368783) -> remove o 9
+        # Remove caracteres não numéricos
+        p = "".join(filter(str.isdigit, str(phone)))
+        
+        # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
         if p.startswith("55") and len(p) == 13:
             return p[:4] + p[5:]
+        
         return p
 
     def _ensure_admin(self):
@@ -105,11 +112,11 @@ class UserService:
         self._save_users()
         return True
 
-    def authorize_guest(self, admin_id: str, guest_id: str, trip_id: str) -> bool:
-        """Um admin autoriza um convidado para uma viagem."""
+    def authorize_guest(self, admin_id: str, guest_id: str, trip_id: str) -> Optional[str]:
+        """Um admin autoriza um convidado para uma viagem. Retorna o trip_id se sucesso."""
         if self.get_user_role(admin_id) != "admin":
             logger.warning(f"Usuário {admin_id} não é admin e tentou autorizar {guest_id}")
-            return False
+            return None
             
         uid = self.normalize_phone(guest_id)
         
@@ -137,7 +144,7 @@ class UserService:
             
         self._save_users()
         logger.info(f"✅ Usuário {uid} autorizado para a viagem {trip_id} por {admin_id}")
-        return True
+        return trip_id
 
     def register_access_request(self, guest_id: str) -> bool:
         """Registra uma tentativa de acesso não autorizada. Retorna True se o admin deve ser notificado agora (throttle)."""

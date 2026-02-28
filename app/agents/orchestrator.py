@@ -85,11 +85,11 @@ def call_model(state: AgentState, config: dict = None):
         if last_user_message and rag.documents:
             rag_context = rag.query(last_user_message, thread_id, k=4)
             if rag_context and "ainda não enviou" not in rag_context and "Nenhuma informação" not in rag_context:
-                # 🛡️ Super Limite de Segurança (v1.2.2): truncate para 20k chars
+                # 🛡️ Super Limite de Segurança (v1.2.3): truncate para 50k chars
                 # Isso garante que mesmo com histórico, não estoure os 128k tokens
-                if len(rag_context) > 20000:
-                    logger.warning(f"⚠️ RAG Context muito grande ({len(rag_context)} chars). Truncando para 20k.")
-                    rag_context = rag_context[:20000] + "\n\n[... Contexto truncado por tamanho ...]"
+                if len(rag_context) > 50000:
+                    logger.warning(f"⚠️ RAG Context muito grande ({len(rag_context)} chars). Truncando para 50k.")
+                    rag_context = rag_context[:50000] + "\n\n[... Contexto truncado por tamanho ...]"
                 
                 context_prompt += f"\n\n📄 DOCUMENTOS DA VIAGEM (use estas informações para responder):\n{rag_context}"
                 logger.info(f"✅ RAG injetado no prompt diretamente ({len(rag_context)} chars)")
