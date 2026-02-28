@@ -105,9 +105,11 @@ class SchedulerService:
             "Pesquise se o destino (ou paradas intermediárias como Portugal/Europa) exige vistos ou ETIAS e avise proativamente "
             "(ex: 'Lembre-se que para entrar em Portugal você precisará de...').\n"
             "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN AGORA. "
-            "Busque e liste os **CÓDIGOS DE RESERVA (Localizadores/Pax Locator)** de todos os viajantes que encontrar nos documentos.\n"
-            "- **D-0 (Dia da Viagem)**: Comemore! 'Seu dia chegou!'. Informe o **TERMINAL de partida** e, se possível, o numero do **GUICHÊ DE CHECK-IN** (ex: 'Vá até o guichê da TAP no Terminal 2, corredor C'). "
-            "Ofereça ajuda com o checklist final de malas e pergunte se ele quer um mapa do aeroporto.\n\n"
+            "Busque e liste os **CÓDIGOS DE RESERVA (Localizadores/Pax Locator)** de todos os viajante. "
+            "**Tutorial de Localização**: Explique que para ser proativo, ele deve compartilhar a 'Localização em Tempo Real' por 8h no WhatsApp amanhã. "
+            "Tranquilize-o dizendo que o consumo de bateria e dados é MÍNIMO (como enviar uma figurinha a cada poucos minutos).\n"
+            "- **D-0 (Dia da Viagem)**: Comemore! 'Seu dia chegou!'. Informe o **TERMINAL de partida** e, se possível, o numero do **GUICHÊ DE CHECK-IN**. "
+            "**Chamada para Ação**: Peça para ele ativar agora a 'Localização em Tempo Real' (Ícone 📎 -> Localização -> Em Tempo Real -> 8h) para que você possa guiá-lo no desembarque e emergências.\n\n"
             "MUITO IMPORTANTE: Use apenas informações reais que encontrar no RAG. Se não encontrar o guichê, peça para ele verificar no painel ou pergunte ao balcão, mas sempre dê o terminal/empresa."
         )
         
