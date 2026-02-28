@@ -30,11 +30,17 @@ class GeolocationService:
         for trip in self.trip_svc.trips:
             if trip["user_id"] == user_id:
                 start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
-                if start_dt <= today and not trip.get("arrival_guide_sent", False):
+                # REGRA: Somente monitorar/ser proativo se a viagem já começou
+                if start_dt <= today:
                     active_trip = trip
+                    # Se for exatamente o dia do início e ainda não enviamos o guia, marcar para enviar
+                    if start_dt == today and not trip.get("arrival_guide_sent", False):
+                        # Nota: A lógica de envio real fica no orchestrator/webhook
+                        pass
                     break
         
         if not active_trip:
+            logger.debug(f"ℹ️ Nenhuma viagem ativa ou iniciada para {user_id} hoje. Ignorando geolocalização proativa.")
             return None
             
         # 2. Verificar proximidade com o destino (Geocoding do destino)

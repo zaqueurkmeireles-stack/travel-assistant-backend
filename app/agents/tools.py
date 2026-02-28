@@ -26,6 +26,7 @@ _duffel_svc = None
 _serpapi_svc = None
 _finance_svc = None
 _connectivity_svc = None
+_emergency_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -86,6 +87,13 @@ def get_connectivity_svc():
     if _connectivity_svc is None:
         _connectivity_svc = ConnectivityService()
     return _connectivity_svc
+
+def get_emergency_svc():
+    global _emergency_svc
+    if _emergency_svc is None:
+        from app.services.emergency_service import EmergencyService
+        _emergency_svc = EmergencyService()
+    return _emergency_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -269,6 +277,17 @@ def provide_visual_navigation_map(place_description: str, config: RunnableConfig
     )
 
 @tool
+def get_local_emergency_numbers(country: str) -> str:
+    """
+    Fornece os números de emergência locais (Polícia, Ambulância, Bombeiros) para o país informado.
+    Use IMEDIATAMENTE se o usuário reportar um acidente, roubo, emergência médica ou perigo.
+    """
+    logger.info(f"🚨 Tool: Buscando números de emergência para {country}")
+    svc = get_emergency_svc()
+    numbers = svc.get_numbers(country)
+    return svc.format_emergency_message(country, numbers)
+
+@tool
 def manage_trip_sharing(action: str, partner_whatsapp: str, confirmation_code: str, config: RunnableConfig) -> str:
     """
     Gerencia o compartilhamento de viagens entre usuários.
@@ -305,5 +324,6 @@ ALL_TOOLS = [
     get_data_usage_status,
     analyze_data_usage_screenshot,
     provide_visual_navigation_map,
-    manage_trip_sharing
+    manage_trip_sharing,
+    get_local_emergency_numbers
 ]
