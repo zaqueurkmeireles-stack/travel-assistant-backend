@@ -58,6 +58,13 @@ class SchedulerService:
                 id="landing_monitor",
                 replace_existing=True
             )
+            # Monitor de Segurança e Notícias - Semanal (Segunda às 11h)
+            self.scheduler.add_job(
+                self.run_weekly_safety_check,
+                trigger=CronTrigger(day_of_week='mon', hour=11, minute=0),
+                id="weekly_safety_check",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -110,8 +117,8 @@ class SchedulerService:
             f"Sua missão é gerar uma mensagem de WhatsApp extremamente útil, carinhosa e proativa baseada nos documentos dele no RAG.\n\n"
             "DIRETRIZES POR TIPO:\n"
             "- **D-7 (Uma semana antes)**: Anime o usuário! Mencione se falta algum documento (gap analysis). "
-            "Pesquise se o destino (ou paradas intermediárias como Portugal/Europa) exige vistos ou ETIAS e avise proativamente "
-            "(ex: 'Lembre-se que para entrar em Portugal você precisará de...').\n"
+            "**AUDITORIA DE ENTRADA**: Use a ferramenta 'search_real_travel_tips' para verificar requisitos de VISTO, VACINAS obrigatórias e SEGURO VIAGEM para o destino. "
+            "Pesquise se o lugar exige comprovação de fundos ou se há alertas de saúde recentes (como surtos).\n"
             "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN AGORA. "
             "Busque e liste os **CÓDIGOS DE RESERVA (Localizadores/Pax Locator)** de todos os viajante. "
             "**Tutorial de Localização**: Explique que para ser proativo, ele deve compartilhar a 'Localização em Tempo Real' por 8h no WhatsApp amanhã. "
@@ -252,3 +259,37 @@ class SchedulerService:
                             self.trip_svc._save_trips()
             except Exception as e:
                 logger.error(f"Erro no monitor de pouso para trip {trip.get('id')}: {e}")
+
+    def run_weekly_safety_check(self):
+        """Busca notícias e alertas críticos para destinos de viagens ativas/futuras."""
+        logger.info("🛡️ Iniciando Monitor de Segurança e Notícias Semanal...")
+        today = datetime.now().date()
+        
+        for trip in self.trip_svc.trips:
+            try:
+                start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                if start_dt >= today:
+                    dest = trip["destination"]
+                    user_id = trip["user_id"]
+                    
+                    logger.info(f"🔎 Analisando segurança para {dest} ({user_id})...")
+                    
+                    # Prompt para a IA realizar a busca e análise de risco
+                    prompt = (
+                        f"Você é um analista de risco de viagens. Busque notícias de ÚLTIMA HORA para viajantes em {dest}.\n"
+                        "Foque em: Surtos de doenças, mudanças em vistos, greves de transporte, instabilidade política ou novas exigências de imigração.\n"
+                        "Se encontrar algo que mude as regras do jogo (Ex: 'Alemanha agora pede extrato bancário de 3 meses' ou 'Surto de Malária'), gere um alerta urgente.\n"
+                        "Se estiver tudo normal, não gere alerta."
+                    )
+                    
+                    from app.agents.orchestrator import TravelAgent
+                    agent = TravelAgent()
+                    alert_content = agent.chat(user_input=prompt, thread_id=user_id)
+                    
+                    # Só enviar se a IA identificar um risco real e não for apenas 'tudo ok'
+                    if alert_content and len(alert_content) > 50 and "normal" not in alert_content.lower()[:20]:
+                        msg = f"🔔 *ALERTA DE SEGURANÇA E NOTÍCIAS: {dest.upper()}* 🛡️\n\n{alert_content}"
+                        self.n8n_svc.enviar_resposta_usuario(user_id, msg)
+                        logger.info(f"🚨 Alerta de segurança enviado para {user_id} sobre {dest}")
+            except Exception as e:
+                logger.error(f"Erro no monitor semanal de segurança para trip {trip.get('id')}: {e}")
