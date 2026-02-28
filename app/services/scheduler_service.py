@@ -50,6 +50,14 @@ class SchedulerService:
                 id="rag_cleanup",
                 replace_existing=True
             )
+            # Monitor de Pouso - A cada 15 min
+            self.scheduler.add_job(
+                self.monitor_active_flights,
+                trigger='interval',
+                minutes=15,
+                id="landing_monitor",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -203,3 +211,44 @@ class SchedulerService:
             self.trip_svc.trips = trips_to_keep
             self.trip_svc._save_trips()
             logger.info(f"✨ Limpeza concluída: {deleted_count} viagem(ns) removida(s).")
+
+    def monitor_active_flights(self):
+        """Monitora voos de viagens ativas e envia guia de chegada ao pousar."""
+        from app.services.flights_service import FlightsService
+        flight_svc = FlightsService()
+        today = datetime.now()
+        today_date = today.date()
+        
+        logger.info("✈️ Monitor de Pouso: Verificando voos ativos...")
+        
+        for trip in self.trip_svc.trips:
+            # Monitorar viagens que estão ocorrendo hoje
+            try:
+                start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                end_dt = datetime.strptime(trip.get("end_date", trip["start_date"]), "%Y-%m-%d").date()
+                
+                if start_dt <= today_date <= end_dt:
+                    flight_num = trip.get("flight_number")
+                    if flight_num and not trip.get("landing_alert_sent", False):
+                        logger.info(f"🔍 Checando status do voo {flight_num} para {trip['user_id']}...")
+                        status_data = flight_svc.get_flight_status(flight_num)
+                        
+                        # Lista de status que indicam pouso (depende da API AeroDataBox)
+                        is_landed = status_data and status_data.get("status") in ["Arrived", "Landed", "Land"]
+                        
+                        if is_landed:
+                            logger.info(f"🛬 Voo {flight_num} POUSOU! Disparando guia de chegada para {trip['user_id']}.")
+                            
+                            # Gerar Guia Inteligente
+                            from app.services.geolocation_service import GeolocationService
+                            geo_svc = GeolocationService()
+                            guide = geo_svc._generate_intelligent_arrival_guide(trip["destination"], trip["user_id"])
+                            
+                            # Enviar ao usuário
+                            self.n8n_svc.enviar_resposta_usuario(trip["user_id"], guide)
+                            
+                            # Marcar como enviado
+                            trip["landing_alert_sent"] = True
+                            self.trip_svc._save_trips()
+            except Exception as e:
+                logger.error(f"Erro no monitor de pouso para trip {trip.get('id')}: {e}")
