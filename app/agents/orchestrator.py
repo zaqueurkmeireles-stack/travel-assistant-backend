@@ -217,6 +217,14 @@ def expert_consensus_review(state: AgentState):
                     logger.info("✅ Veredito final do Claude obtido.")
             except Exception as e:
                 logger.error(f"Erro no Claude: {e}")
+                if "balance" in str(e).lower() or "quota" in str(e).lower():
+                    n8n = N8nService()
+                    admin_num = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                    if admin_num:
+                        n8n.enviar_resposta_usuario(
+                            admin_num, 
+                            "🚨 *ALERTA ANTHROPIC CLAUDE*\nSeu saldo de créditos acabou. O refinamento de respostas de elite está temporariamente desativado."
+                        )
         elif gemini_opinion:
             final_response = f"{last_ai_message}\n\n---\n✨ **Revisão de Segurança (Consenso IAs):**\n{gemini_opinion}"
 

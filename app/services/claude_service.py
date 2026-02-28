@@ -16,9 +16,10 @@ class ClaudeService:
             self.llm = ChatAnthropic(
                 model="claude-3-5-sonnet-20240620",
                 api_key=settings.ANTHROPIC_API_KEY,
-                temperature=0.7
+                temperature=0.7,
+                max_retries=0 # 🛡️ Falha rápido para não travar o usuário
             )
-            logger.info("✅ Claude Service inicializado")
+            logger.info("✅ Claude Service inicializado (Retries desativados)")
         else:
             self.llm = None
             logger.warning("⚠️ Chave do Claude não configurada.")
@@ -49,5 +50,8 @@ class ClaudeService:
             response = self.llm.invoke(prompt)
             return response.content
         except Exception as e:
-            logger.error(f"Erro ao consultar Claude: {e}")
+            if "credit balance" in str(e).lower() or "quota" in str(e).lower():
+                logger.error(f"🛑 SALDO INSUFICIENTE NO CLAUDE (Anthropic): {e}")
+            else:
+                logger.error(f"Erro ao consultar Claude: {e}")
             return None
