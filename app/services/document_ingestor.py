@@ -90,7 +90,7 @@ class DocumentIngestor:
             if removed:
                 logger.info(f"🔄 {removed} versão(ões) anterior(es) do tipo '{doc_type}' substituída(s)")
             
-            # 6. Indexar no RAG com o Trip ID
+            # 6. Indexar no RAG com o Trip ID (em Chunks de ~4000 chars para melhor retrieval)
             metadata = {
                 "filename": filename,
                 "thread_id": sender_number,
@@ -99,7 +99,21 @@ class DocumentIngestor:
                 "document_type": doc_type
             }
             
-            self.rag_svc.add_document(extracted_text, metadata)
+            # ✂️ Lógica de Chunking: divide textos grandes em pedaços menores
+            chunk_size = 4000
+            overlap = 200
+            chunks = []
+            
+            if len(extracted_text) > chunk_size:
+                for i in range(0, len(extracted_text), chunk_size - overlap):
+                    chunk = extracted_text[i:i + chunk_size]
+                    chunks.append(chunk)
+                logger.info(f"✂️ Documento fatiado em {len(chunks)} chunks para indexação.")
+            else:
+                chunks = [extracted_text]
+
+            for chunk_content in chunks:
+                self.rag_svc.add_document(chunk_content, metadata)
             
             # 7. Detectar se outro usuário tem viagem similar (mesma dest + data ±3 dias)
             trip_match = None
