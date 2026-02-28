@@ -22,6 +22,10 @@ class N8nService:
             
     def enviar_resposta_usuario(self, numero_usuario: str, mensagem: str) -> bool:
         """Envia a resposta gerada pela IA de volta para o n8n entregar no WhatsApp"""
+        if not numero_usuario or numero_usuario.strip() == "":
+            logger.warning("⚠️ Tentativa de enviar resposta para um número vazio. Abortando.")
+            return False
+
         if not self.webhook_url:
             logger.info(f"[SIMULADO - N8N] Para {numero_usuario}: {mensagem}")
             return True

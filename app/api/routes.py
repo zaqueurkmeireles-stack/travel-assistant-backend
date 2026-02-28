@@ -86,6 +86,14 @@ async def chat_endpoint(
     Recebe a mensagem, processa no LangGraph, devolve a resposta ao WhatsApp via N8nService
     e retorna JSON para o n8n.
     """
+    if not request.user_id or request.user_id.strip() == "":
+        logger.error("❌ Erro: Request recebido com user_id vazio. Verifique o mapeamento no n8n.")
+        return ChatResponse(
+            success=False,
+            response="Erro: user_id não identificado. Verifique a configuração do seu integrador.",
+            user_id="desconhecido"
+        )
+
     logger.info(f"📥 Nova mensagem de {request.user_id}: {request.message[:50]}...")
     
     try:
@@ -188,10 +196,9 @@ async def chat_endpoint(
             
             # Mg para o Admin se passou no Throttle
             if should_notify_admin:
-                from app.config import settings
                 admin_number = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
                 if admin_number:
-                    admin_msg = f"⚠️ *Pedido de Acesso!*\nO WhatsApp `{request.user_id}` enviou uma mensagem pedindo para usar o robô.\n\nSe ele for membro da sua viagem atual, responda a esta mensagem exatamente assim:\n`sim {request.user_id}`"
+                    admin_msg = f"⚠️ *Pedido de Acesso!*\nO contato `{request.user_id}` enviou uma mensagem pedindo para usar o robô.\n\nPara autorizar na viagem atual, responda:\n`sim {request.user_id}`"
                     background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
                     logger.info(f"🔔 Admin notificado sobre a tentativa de {request.user_id}")
             
