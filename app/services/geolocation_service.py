@@ -47,16 +47,27 @@ class GeolocationService:
         # Distância aproximada simples (haversine ou similar - aqui simplificado para MVP)
         distance = self._calculate_distance(lat, lng, dest_loc["lat"], dest_loc["lng"])
         
-        # Se estiver a menos de 50km do centro da cidade/aeroporto
-        if distance < 50:
-            logger.info(f"🛬 Usuário {user_id} detectado em {dest_name}!")
-            active_trip["arrival_guide_sent"] = True
+        # 3. Auditoria de Proximidade (Gaps e Recomendações)
+        # Cooldown para não spammar (ex: apenas 1 dica proativa a cada 6 horas)
+        last_tip_time = active_trip.get("last_proactive_tip_at")
+        should_send_tip = True
+        if last_tip_time:
+            try:
+                last_dt = datetime.fromisoformat(last_tip_time)
+                if (datetime.now() - last_dt).total_seconds() < 21600: # 6 horas
+                    should_send_tip = False
+            except:
+                pass
+
+        if should_send_tip:
+            from app.services.proactive_recommendation_service import ProactiveRecommendationService
+            rec_svc = ProactiveRecommendationService()
+            tip = rec_svc.generate_proactive_tip(user_id, lat, lng)
             
-            # Tentar marcar hotel como "dia de chegada" para RAG
-            self.trip_svc._save_trips()
-            
-            guide_msg = self._generate_intelligent_arrival_guide(dest_name, user_id)
-            return guide_msg
+            if tip:
+                active_trip["last_proactive_tip_at"] = datetime.now().isoformat()
+                self.trip_svc._save_trips()
+                return tip
             
         return None
 
