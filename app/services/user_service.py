@@ -172,7 +172,7 @@ class UserService:
         else:
             try:
                 last_time = datetime.fromisoformat(last_request)
-                if (now - last_time).total_seconds() > 0: # 0 segundos para TESTE (sempre notifica)
+                if (now - last_time).total_seconds() > 600: # 10 minutos
                     should_notify = True
             except:
                 should_notify = True

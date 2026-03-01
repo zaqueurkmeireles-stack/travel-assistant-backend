@@ -115,6 +115,12 @@ async def chat_endpoint(
             
         logger.info(f"👤 [NORMALIZADO] {request.user_id}")
         
+        # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
+        bot_number = user_service.normalize_phone(getattr(settings, "BOT_WHATSAPP_NUMBER", ""))
+        if bot_number and request.user_id == bot_number:
+            logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Prevenção de loop infinito).")
+            return ChatResponse(success=True, response="", user_id=request.user_id)
+        
         role = user_service.get_user_role(request.user_id)
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
