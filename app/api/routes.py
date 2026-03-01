@@ -24,6 +24,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     user_id: str  # Número do WhatsApp (usado como thread_id na memória)
     message: str  # Mensagem do usuário
+    push_name: Optional[str] = "Desconhecido"
 
 class ChatResponse(BaseModel):
     success: bool
@@ -35,6 +36,7 @@ class MediaRequest(BaseModel):
     base64: str
     filename: str
     mimetype: str
+    push_name: Optional[str] = "Desconhecido"
 
 class LocationRequest(BaseModel):
     user_id: str
@@ -338,7 +340,7 @@ async def chat_endpoint(
                     )
                     background_tasks.add_task(n8n.enviar_resposta_usuario, host_id, admin_msg)
                     # Registra no registro de requests para o comando 'sim' funcionar
-                    user_service.register_access_request(request.user_id) 
+                    user_service.register_access_request(request.user_id, request.push_name) 
                 else:
                     guest_msg = (
                         "Não consegui localizar esse nome no meu sistema. 😕\n\n"
@@ -347,7 +349,20 @@ async def chat_endpoint(
                     )
                     user_service.set_user_phase(request.user_id, "discovery_waiting")
                     # Fallback para Admin Geral
-                    user_service.register_access_request(request.user_id)
+                    should_notify = user_service.register_access_request(request.user_id, request.push_name)
+                    if should_notify:
+                        admin_raw = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
+                        if admin_raw:
+                            admin_number = user_service.normalize_phone(admin_raw)
+                            admin_msg = (
+                                f"🚨 *Nova Solicitação de Acesso (Fallback)*\n\n"
+                                f"👤 Nome: {request.push_name}\n"
+                                f"📱 ID: {request.user_id}\n"
+                                f"💬 Mensagem: \"{request.message}\"\n\n"
+                                f"O usuário não conseguiu identificar um host. Envie *sim {request.user_id}* para autorizar."
+                            )
+                            background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
+                            logger.info(f"📢 Admin notificado sobre acesso pendente (fallback): {request.user_id}")
 
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
                 return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
@@ -457,9 +472,10 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             # For now, let's notify admin.
             n8n = N8nService()
             admin_msg = (
-                f"🚨 *Nova Solicitação de Acesso com Documento*\\n\\n"
-                f"👤 ID: {request.user_id}\\n"
-                f"📄 Arquivo: {request.filename}\\n\\n"
+                f"🚨 *Nova Solicitação de Acesso com Documento*\n\n"
+                f"👤 Nome: {request.push_name}\n"
+                f"📱 ID: {request.user_id}\n"
+                f"📄 Arquivo: {request.filename}\n\n"
                 f"Envie *sim {request.user_id}* para autorizar e processar o documento."
             )
             background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg)
