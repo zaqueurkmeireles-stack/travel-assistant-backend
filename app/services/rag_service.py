@@ -209,3 +209,29 @@ class RAGService:
                     filenames.add(doc["metadata"]["filename"])
                     
         return list(filenames)
+
+    def assign_trip_to_user_documents(self, thread_id: str, trip_id: str) -> int:
+        """
+        Retroativamente vincula todos os documentos de um usuário a um trip_id específico.
+        Útil quando um convidado envia documentos antes de ser formalmente autorizado para a viagem.
+        Sobrescreve qualquer trip_id anterior para garantir que todos os docs fiquem na mesma 'pasta' lógica.
+        """
+        try:
+            self._load_data()
+            count = 0
+            for doc in self.documents:
+                m = doc["metadata"]
+                # Normaliza ambos para comparação segura
+                if m.get("thread_id") == thread_id:
+                    if m.get("trip_id") != trip_id:
+                        m["trip_id"] = trip_id
+                        count += 1
+            
+            if count > 0:
+                self._save_data()
+                logger.info(f"🔗 {count} documentos de {thread_id} foram recalibrados para a trip {trip_id}")
+            
+            return count
+        except Exception as e:
+            logger.error(f"❌ Erro ao vincular documentos retroativamente: {e}")
+            return 0

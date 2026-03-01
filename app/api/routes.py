@@ -226,7 +226,8 @@ async def chat_endpoint(
                 )
                 
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
+                # 🛑 REMOVIDO: Envio via background task para o admin, pois ele já recebe o JSON de retorno (ChatResponse)
+                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
                 background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
                 return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
             else:
@@ -245,12 +246,13 @@ async def chat_endpoint(
                 msg = f"✅ Contato {guest_id} autorizado para a viagem '{trip_id}'!" if success else "❌ Falha ao autorizar."
                 
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                # 🛑 REMOVIDO: Envio via background task redundante
+                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
             else:
                 msg = "⚠️ Formato incorreto. Use: sim <numero> ou autorizar <numero> <viagem>"
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
 
         if role == "unauthorized":
@@ -273,7 +275,7 @@ async def chat_endpoint(
                 admin_raw = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
                 if admin_raw:
                     admin_number = user_service.normalize_phone(admin_raw)
-                    admin_msg = f"⚠️ *Pedido de Acesso!*\n\"o numero {request.user_id}\" esta tentando conversar com o assistente de viagens, voce confirma?\n\nPara autorizar, responda:\n`sim {request.user_id}`"
+                    admin_msg = f"⚠️ *Pedido de Acesso!*\n\"o numero {request.user_id}\" esta tentando conversar com o assistente de viagens, voce confirma?\n\nPara autorizar, responda:\n*sim*"
                     background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
                     logger.info(f"🔔 Admin notificado ({admin_number}) sobre a tentativa de {request.user_id}")
                 else:

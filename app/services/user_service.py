@@ -133,10 +133,17 @@ class UserService:
         if trip_id not in self.users[uid]["authorized_trips"]:
             self.users[uid]["authorized_trips"].append(trip_id)
             
-        # Define a viagem ativa para o guest, se ele não tiver nenhuma
         if not self.users[uid]["active_trip_id"]:
             self.users[uid]["active_trip_id"] = trip_id
             
+        # [NOVO] Vincular retroativamente documentos que o convidado enviou ANTES da autorização
+        try:
+            from app.services.rag_service import RAGService
+            rag = RAGService()
+            rag.assign_trip_to_user_documents(uid, trip_id)
+        except Exception as e:
+            logger.error(f"⚠️ Falha ao vincular documentos retroativos para {uid}: {e}")
+
         # Limpa da fila de espera do Admin
         admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         pending = self.users.get(admin_number, {}).get("pending_requests", {})
