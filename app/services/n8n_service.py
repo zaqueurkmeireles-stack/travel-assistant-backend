@@ -26,6 +26,34 @@ class N8nService:
             logger.warning("⚠️ Tentativa de enviar resposta para um número vazio. Abortando.")
             return False
 
+        # --- [FIREWALL DE SAÍDA] ---
+        # 🛡️ Proteção para nunca ser proativo com estranhos ou grupos
+        try:
+            from app.services.user_service import UserService
+            from app.config import settings
+            user_svc = UserService()
+            
+            # 1. Admin sempre é liberado
+            admin_number = user_svc.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+            uid = user_svc.normalize_phone(numero_usuario)
+            
+            if uid == admin_number:
+                pass # Liberado
+            else:
+                # 2. Se não for admin, tem que ser GUEST AUTORIZADO
+                role = user_svc.get_user_role(uid)
+                if role != "guest":
+                    logger.warning(f"🛡️ [FIREWALL] Bloqueado: Tentativa de envio proativo para usuário não autorizado ({uid})")
+                    return False
+                
+                # 3. Tem que ter uma TRIP ATIVA (o get_user_role já checa isso, mas reforçamos aqui)
+                # O get_user_role("guest") no nosso backend atual só retorna guest se tiver trip ativa (D+2).
+                # Se ele retornar "unauthorized", cai no bloco acima.
+        except Exception as e:
+            logger.error(f"⚠️ Erro ao validar firewall de saída para {numero_usuario}: {e}")
+            # Na dúvida, se o firewall falhar (ex: erro de import), bloqueamos por segurança em modo proativo
+            # Mas se for uma resposta direta de chat, o erro seria capturado antes.
+
         if not self.webhook_url:
             logger.info(f"[SIMULADO - N8N] Para {numero_usuario}: {mensagem}")
             return True

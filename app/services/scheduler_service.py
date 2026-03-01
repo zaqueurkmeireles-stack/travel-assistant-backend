@@ -115,6 +115,13 @@ class SchedulerService:
                 start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
                 if start_dt >= datetime.now().date():
                     user_id = trip["user_id"]
+                    
+                    # [SEGURANÇA] Só audita e manda se o usuário ainda tiver permissão de guest
+                    from app.services.user_service import UserService
+                    user_svc = UserService()
+                    if user_svc.get_user_role(user_id) != "guest":
+                        continue
+
                     audit_data = audit_svc.audit_trip(user_id, trip["id"], trip)
                     
                     # Só enviar se houver gaps relevantes
