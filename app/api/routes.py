@@ -233,6 +233,7 @@ async def chat_endpoint(
         if role == "unauthorized":
             should_notify_admin = user_service.register_access_request(request.user_id)
             n8n = N8nService()
+            logger.info(f"🔎 DEBUG Admin Notification - role=unauthorized, should_notify={should_notify_admin}")
             
             # Msg para o convidado (Sempre responde)
             guest_msg = (
@@ -252,6 +253,8 @@ async def chat_endpoint(
                     admin_msg = f"⚠️ *Pedido de Acesso!*\n\"o numero {request.user_id}\" esta tentando conversar com o assistente de viagens, voce confirma?\n\nPara autorizar, responda:\n`sim {request.user_id}`"
                     background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
                     logger.info(f"🔔 Admin notificado ({admin_number}) sobre a tentativa de {request.user_id}")
+                else:
+                    logger.warning("⚠️ ADMIN_WHATSAPP_NUMBER não configurado ou vazio.")
             
             return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
 

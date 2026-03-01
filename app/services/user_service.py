@@ -154,10 +154,12 @@ class UserService:
         admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         
         self._ensure_admin()
+        logger.info(f"🔎 DEBUG UserService - register_access_request para {uid}. Admin config: {admin_number}. Admin no BD: {'Sim' if admin_number in self.users else 'Não'}")
         
         if not admin_number or admin_number not in self.users:
+            logger.warning(f"⚠️ Erro ao registrar request: admin_number inválido ou não encontrado no BD.")
             return False
-        
+            
         pending_requests = self.users[admin_number].setdefault("pending_requests", {})
         last_request = pending_requests.get(uid)
         
@@ -179,6 +181,7 @@ class UserService:
         pending_requests[uid] = now.isoformat()
         self.users[admin_number]["pending_requests"] = pending_requests
         self._save_users()
+        logger.info(f"🔎 DEBUG UserService - register_access_request salvou no BD. should_notify={should_notify}")
         
         return should_notify
 
