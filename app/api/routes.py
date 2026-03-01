@@ -130,7 +130,13 @@ async def chat_endpoint(
             "BEM-VINDO AO SEVEN ASSISTANT TRAVEL",
             "Pedido de Acesso!",
             "seven assistant",
-            "Aqui estão os detalhes da sua viagem"
+            "Aqui estão os detalhes da sua viagem",
+            "Aqui estão os documentos de viagem",
+            "Não vejo novos bilhetes de passagem",
+            "✅ Documento recebido e salvo!",
+            "📋 Checklist de documentos:",
+            "🎉 Todos os documentos essenciais já estão salvos",
+            "🔗 Viagem em Grupo Detectada!"
         ]
         if any(sig.lower() in message_str.lower() for sig in bot_signatures) and len(message_str) > 50:
             logger.info("🛑 Mensagem ignorada: Detectado ECHO da própria resposta do bot.")
@@ -370,6 +376,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             logger.warning(f"🚫 Mídia recusada. Usuário não autorizado: {request.user_id}")
             return JSONResponse(status_code=403, content={"success": False, "message": "Não autorizado a enviar arquivos."})
 
+        request.user_id = user_service.normalize_phone(request.user_id)
         ingestor = DocumentIngestor()
         # Adaptar o payload para o formato esperado pelo ingestor
         data_payload = {

@@ -212,6 +212,40 @@ def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
     return get_rag_svc().query(query_text, thread_id)
 
 @tool
+def diagnostic_rag(config: RunnableConfig) -> str:
+    """
+    Ferramenta de diagnóstico técnico para verificar se os documentos estão corretamente vinculados.
+    Use quando o administrador disser algo como 'debug rag' ou 'diagnostico'.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    rag = get_rag_svc()
+    from app.services.user_service import UserService
+    us = UserService()
+    norm_id = us.normalize_phone(thread_id)
+    active_trip = us.get_active_trip(norm_id)
+    
+    report = [f"--- DIAGNÓSTICO RAG ({thread_id}) ---"]
+    report.append(f"ID Normalizado: {norm_id}")
+    report.append(f"Viagem Ativa: {active_trip}")
+    report.append("\nDocumentos Detectados:")
+    
+    count = 0
+    for doc in rag.documents:
+        m = doc["metadata"]
+        m_trip = m.get("trip_id")
+        m_thread = m.get("thread_id")
+        
+        # Filtro simplificado do RAG
+        if (active_trip and m_trip == active_trip) or us.normalize_phone(m_thread) == norm_id:
+            count += 1
+            report.append(f"- {m.get('filename')} (Trip: {m_trip} | User: {m_thread})")
+            
+    if count == 0:
+        report.append("Nenhum documento encontrado.")
+        
+    return "\n".join(report)
+
+@tool
 def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "") -> str:
     """
     Busca ofertas de voos REAIS em tempo real.
@@ -405,8 +439,9 @@ ALL_TOOLS = [
     search_real_travel_tips,
     get_directions,
     register_expense,
-    list_travel_documents,
     query_travel_documents,
+    list_travel_documents,
+    diagnostic_rag,
     search_flights,
     search_hotels,
     convert_currency,

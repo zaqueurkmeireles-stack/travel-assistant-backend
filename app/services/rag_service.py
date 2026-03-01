@@ -164,6 +164,7 @@ class RAGService:
             
             from app.services.user_service import UserService
             user_service = UserService()
+            thread_id = user_service.normalize_phone(thread_id)
             active_trip = user_service.get_active_trip(thread_id)
             
             # Gerar embedding da query
@@ -204,6 +205,7 @@ class RAGService:
         """Lista nomes de arquivos enviados para a viagem atual do usuário ou para o próprio usuário"""
         from app.services.user_service import UserService
         user_service = UserService()
+        thread_id = user_service.normalize_phone(thread_id)
         active_trip = user_service.get_active_trip(thread_id)
         
         filenames = set()
@@ -228,7 +230,7 @@ class RAGService:
             for doc in self.documents:
                 m = doc["metadata"]
                 # Normaliza ambos para comparação segura
-                if m.get("thread_id") == thread_id:
+                if user_service.normalize_phone(m.get("thread_id")) == user_service.normalize_phone(thread_id):
                     if m.get("trip_id") != trip_id:
                         m["trip_id"] = trip_id
                         count += 1

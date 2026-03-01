@@ -25,7 +25,11 @@ class DocumentIngestor:
         try:
             # 1. Extrair informações básicas
             message = data.get("message", {})
-            sender_number = data.get("key", {}).get("remoteJid", "").split("@")[0] or data.get("sender", "unknown")
+            raw_sender = data.get("key", {}).get("remoteJid", "").split("@")[0] or data.get("sender", "unknown")
+            from app.services.user_service import UserService
+            user_svc = UserService()
+            sender_number = user_svc.normalize_phone(raw_sender)
+            logger.info(f"📥 Ingestão para: {sender_number} (Original: {raw_sender})")
             
             # Identificar se é documento ou imagem
             doc_msg = message.get("documentMessage")
