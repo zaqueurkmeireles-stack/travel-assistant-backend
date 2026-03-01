@@ -90,8 +90,8 @@ async def chat_endpoint(
     if not request.user_id or request.user_id.strip() == "":
         logger.error("❌ Erro: Request recebido com user_id vazio. Verifique o mapeamento no n8n.")
         return ChatResponse(
-            success=False,
-            response="Erro: user_id não identificado. Verifique a configuração do seu integrador.",
+            success=True,
+            response="",
             user_id="desconhecido"
         )
 
@@ -108,8 +108,8 @@ async def chat_endpoint(
         if not request.user_id:
             logger.error(f"❌ Erro crítico: user_id '{original_user_id}' inválido após normalização.")
             return ChatResponse(
-                success=False,
-                response="Erro: Identificador de usuário inválido. Por favor, tente novamente.",
+                success=True,
+                response="",
                 user_id="invalid"
             )
             
