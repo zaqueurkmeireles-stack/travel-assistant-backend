@@ -7,14 +7,23 @@ from loguru import logger
 
 class UserService:
     """Gerencia níveis de acesso, perfis de usuários e viagens ativas."""
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(UserService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self):
+        if self._initialized: return
         self.db_path = os.path.join(os.path.dirname(settings.CHROMA_DB_PATH), "users_db.json")
         self.users: Dict[str, Dict[str, Any]] = {}
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._load_users()
         self._ensure_admin()
-        logger.info(f"✅ UserService inicializado (Base: {self.db_path})")
+        self._initialized = True
+        logger.debug(f"✅ UserService inicializado (Base: {self.db_path})")
 
     def _load_users(self):
         if os.path.exists(self.db_path):

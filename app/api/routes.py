@@ -94,8 +94,6 @@ async def chat_endpoint(
             response="",
             user_id="desconhecido"
         )
-
-    logger.info(f"📥 [RAW] Mensagem de {request.user_id}: {request.message[:50]}...")
     
     try:
         from app.services.user_service import UserService
@@ -117,6 +115,8 @@ async def chat_endpoint(
                 response="",
                 user_id="invalid"
             )
+
+        logger.info(f"📥 [RAW] Mensagem de {request.user_id}: {request.message[:50]}...")
             
         logger.info(f"👤 [NORMALIZADO] {request.user_id}")
         
