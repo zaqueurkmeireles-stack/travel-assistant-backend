@@ -54,10 +54,13 @@ class RAGService:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar dados do RAG: {e}")
 
-    def delete_documents_by_type(self, thread_id: str, document_type: str, trip_id: str = None) -> int:
-        """Remove documentos do mesmo tipo para evitar duplicatas ao atualizar informações."""
+    def delete_documents_by_type(self, thread_id: str, document_type: str, trip_id: str = None, filename: str = None) -> int:
+        """
+        Remove documentos do mesmo tipo (e opcionalmente do mesmo nome) para evitar duplicatas.
+        Se filename for fornecido, a exclusão é mais cirúrgica (apenas substitui o arquivo exato).
+        """
         try:
-            self._load_data()  # garantir dados frescos do disco
+            self._load_data()
             if not self.documents:
                 return 0
             indices_to_remove = []
@@ -66,18 +69,21 @@ class RAGService:
                 same_user = m.get("thread_id") == thread_id
                 same_type = m.get("document_type", "").lower() == document_type.lower()
                 same_trip = (trip_id and m.get("trip_id") == trip_id) or (not trip_id)
-                if same_user and same_type and same_trip:
+                same_file = (filename and m.get("filename") == filename) or (not filename)
+                
+                if same_user and same_type and same_trip and same_file:
                     indices_to_remove.append(i)
+            
             if not indices_to_remove:
                 return 0
+            
             for i in sorted(indices_to_remove, reverse=True):
                 self.documents.pop(i)
-                if len(self.vectors) > 1:
+                if len(self.vectors) > 0:
                     self.vectors = np.delete(self.vectors, i, axis=0)
-                else:
-                    self.vectors = np.array([])
+                
             self._save_data()
-            logger.info(f"🗑️ {len(indices_to_remove)} doc(s) antigo(s) tipo '{document_type}' removidos para {thread_id}")
+            logger.info(f"🗑️ {len(indices_to_remove)} doc(s) antigo(s) removidos para {thread_id}")
             return len(indices_to_remove)
         except Exception as e:
             logger.error(f"❌ Erro ao remover docs antigos: {e}")

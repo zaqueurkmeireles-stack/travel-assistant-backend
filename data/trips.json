@@ -152,5 +152,21 @@
     "start_date": "2026-03-08",
     "alerts_sent": [],
     "last_gov_alert_date": "2026-03-01"
+  },
+  {
+    "id": "554199999999_Lisboa_2026-04-14",
+    "user_id": "554199999999",
+    "destination": "Lisboa",
+    "start_date": "2026-04-14",
+    "end_date": null,
+    "confirmation_code": null,
+    "flight_number": null,
+    "event_name": null,
+    "venue": null,
+    "gate": null,
+    "points_of_interest": [],
+    "alerts_sent": [],
+    "landing_alert_sent": false,
+    "created_at": "2026-03-01T10:18:29.755412"
   }
 ]

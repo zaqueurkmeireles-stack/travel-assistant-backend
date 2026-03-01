@@ -188,6 +188,19 @@ def register_expense(expense_text: str) -> str:
 from langchain_core.runnables import RunnableConfig
 
 @tool
+def list_travel_documents(config: RunnableConfig) -> str:
+    """
+    Lista todos os documentos de viagem salvos (passagens, hotéis, etc) para a viagem atual.
+    Use quando o usuário perguntar 'quais documentos tenho salvos?' ou 'o que você já tem?'.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"📂 Tool: Listando documentos (Thread: {thread_id})")
+    docs = get_rag_svc().list_user_documents(thread_id)
+    if not docs:
+        return "Nenhum documento encontrado para a sua viagem atual."
+    return "Documentos salvos:\n- " + "\n- ".join(docs)
+
+@tool
 def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
     """
     Busca informações em documentos pessoais de viagem (passagens, hotéis, seguros) 
@@ -392,6 +405,7 @@ ALL_TOOLS = [
     search_real_travel_tips,
     get_directions,
     register_expense,
+    list_travel_documents,
     query_travel_documents,
     search_flights,
     search_hotels,
