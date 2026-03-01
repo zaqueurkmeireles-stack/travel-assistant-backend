@@ -227,10 +227,14 @@ class RAGService:
         try:
             self._load_data()
             count = 0
+            # Inicializa UserService localmente para normalização
+            from app.services.user_service import UserService
+            user_svc = UserService()
+            
             for doc in self.documents:
                 m = doc["metadata"]
                 # Normaliza ambos para comparação segura
-                if user_service.normalize_phone(m.get("thread_id")) == user_service.normalize_phone(thread_id):
+                if user_svc.normalize_phone(m.get("thread_id")) == user_svc.normalize_phone(thread_id):
                     if m.get("trip_id") != trip_id:
                         m["trip_id"] = trip_id
                         count += 1
