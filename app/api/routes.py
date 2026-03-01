@@ -183,14 +183,14 @@ async def chat_endpoint(
                 
                 resp = f"✅ *Vinculação Confirmada!*\nAgora você e o Administrador compartilham o planejamento para *{dest}*.\n\nQualquer documento que um de vocês enviar será memorizado para ambos. Como posso ajudar com a viagem hoje?"
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp, bypass_firewall=True)
                 return ChatResponse(success=True, response=resp, user_id=request.user_id)
             
             elif msg_upper in ["NÃO", "NAO", "N", "NO", "RECUSAR"]:
                 user_service.clear_pending_trip_link(request.user_id)
                 resp = "Entendido. Mantive seu planejamento separado e privado. Para qualquer dúvida, estou à disposição!"
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp, bypass_firewall=True)
                 return ChatResponse(success=True, response=resp, user_id=request.user_id)
         # --------------------------------------------------------------------
 
@@ -260,12 +260,12 @@ async def chat_endpoint(
                 )
                 
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest, bypass_firewall=True)
                 return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
             else:
                 msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa cadastrada ou documento enviado?"
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
                 
         # Manter compatibilidade do comando antigo completo
@@ -300,7 +300,8 @@ async def chat_endpoint(
                     f"💬 Mensagem: \"{request.message}\"\n\n"
                     f"Envie *sim {request.user_id}* para autorizar."
                 )
-                background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg)
+                # Notificação para o Admin (sempre liberado pelo Firewall via normalize_phone)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
                 logger.info(f"📢 Admin notificado sobre acesso pendente: {request.user_id}")
 
             # [SILENT MODE] O robô JAMAIS deve responder ao usuário não autorizado.
@@ -316,7 +317,8 @@ async def chat_endpoint(
             background_tasks.add_task(
                 n8n.enviar_resposta_usuario,
                 request.user_id,
-                resposta_ia
+                resposta_ia,
+                bypass_firewall=True
             )
             logger.info(f"✅ Resposta agendada para envio ao WhatsApp ({request.user_id})")
         
@@ -394,9 +396,10 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             logger.info(f"👥 Grupo detectado e ignorado (Media): {request.user_id}")
             return JSONResponse(status_code=202, content={"success": True, "message": "Ignorado (Grupo)"})
 
-        role = user_service.get_user_role(request.user_id)
+        user_data = user_service.get_user(request.user_id)
+        base_role = user_data.get("role") if user_data else "unauthorized"
         
-        if role == "unauthorized":
+        if base_role == "unauthorized":
             logger.info(f"⏳ Processando mídia (unauthorized) para preview do Admin: {request.user_id}")
             # [SILENT MODE] Notifica apenas o Admin, NUNCA responde ao usuário.
             n8n = N8nService()
@@ -407,7 +410,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                 f"📄 Arquivo: {request.filename}\n\n"
                 f"Envie *sim {request.user_id}* para autorizar e processar o documento."
             )
-            background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg)
+            background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
             
             return JSONResponse(status_code=202, content={
                 "success": True, 
@@ -491,7 +494,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                     total_docs = len(user_docs)
                     confirm_msg += f"\n\n📊 *Status do RAG:* {total_docs} documentos salvos e indexados."
                     
-                    n8n.enviar_resposta_usuario(request.user_id, confirm_msg)
+                    n8n.enviar_resposta_usuario(request.user_id, confirm_msg, bypass_firewall=True)
                     logger.info(f"✅ Confirmação + gap analysis enviada para {request.user_id}")
                     
                     # 3. [NOVO] Oferta de Compartilhamento de Viagem (Shared RAG)
@@ -515,7 +518,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                             destination=dest,
                             start_date=date
                         )
-                        n8n.enviar_resposta_usuario(request.user_id, share_msg)
+                        n8n.enviar_resposta_usuario(request.user_id, share_msg, bypass_firewall=True)
                         logger.info(f"🔗 Oferta de compartilhamento enviada para {request.user_id}")
                     
                 except Exception as e:

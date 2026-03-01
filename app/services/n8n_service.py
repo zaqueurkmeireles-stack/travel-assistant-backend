@@ -20,7 +20,7 @@ class N8nService:
         else:
             logger.info("✅ N8n Service inicializado")
             
-    def enviar_resposta_usuario(self, numero_usuario: str, mensagem: str) -> bool:
+    def enviar_resposta_usuario(self, numero_usuario: str, mensagem: str, bypass_firewall: bool = False) -> bool:
         """Envia a resposta gerada pela IA de volta para o n8n entregar no WhatsApp"""
         if not numero_usuario or numero_usuario.strip() == "":
             logger.warning("⚠️ Tentativa de enviar resposta para um número vazio. Abortando.")
@@ -28,29 +28,36 @@ class N8nService:
 
         # --- [FIREWALL DE SAÍDA] ---
         # 🛡️ Proteção para nunca ser proativo com estranhos ou grupos
-        try:
-            from app.services.user_service import UserService
-            from app.config import settings
-            user_svc = UserService()
-            
-            # 1. Admin sempre é liberado
-            admin_number = user_svc.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
-            uid = user_svc.normalize_phone(numero_usuario)
-            
-            if uid == admin_number:
-                pass # Liberado
-            else:
-                # 2. Se não for admin, tem que ser GUEST AUTORIZADO
-                role = user_svc.get_user_role(uid)
-                if role != "guest":
-                    logger.warning(f"🛡️ [FIREWALL] Bloqueado: Tentativa de envio proativo para usuário não autorizado ({uid})")
-                    return False
+        # O firewall só bloqueia se não for ADMIN e não for um bypass explícito (resposta direta do chat/media)
+        if not bypass_firewall:
+            try:
+                from app.services.user_service import UserService
+                from app.config import settings
+                user_svc = UserService()
                 
-                # 3. Tem que ter uma TRIP ATIVA (o get_user_role já checa isso, mas reforçamos aqui)
-                # O get_user_role("guest") no nosso backend atual só retorna guest se tiver trip ativa (D+2).
-                # Se ele retornar "unauthorized", cai no bloco acima.
-        except Exception as e:
-            logger.error(f"⚠️ Erro ao validar firewall de saída para {numero_usuario}: {e}")
+                # 1. Admin sempre é liberado
+                admin_number = user_svc.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+                uid = user_svc.normalize_phone(numero_usuario)
+                
+                if uid == admin_number:
+                    pass # Liberado
+                else:
+                    # 2. Se não for admin, tem que ser GUEST AUTORIZADO (com ou sem trip ativa para bypass parcial)
+                    user_data = user_svc.get_user(uid)
+                    role = user_data.get("role") if user_data else "unauthorized"
+                    
+                    if role != "guest":
+                        logger.warning(f"🛡️ [FIREWALL] Bloqueado: Tentativa de envio proativo para usuário não autorizado ({uid})")
+                        return False
+                    
+                    # 3. Se for proativo (sem bypass), tem que ter TRIP ATIVA
+                    # Usamos get_user_role que já tem a lógica de expiração
+                    expired_role = user_svc.get_user_role(uid)
+                    if expired_role == "unauthorized":
+                        logger.warning(f"🛡️ [FIREWALL] Bloqueado: Usuário '{uid}' é guest mas não tem viagem ativa no momento.")
+                        return False
+            except Exception as e:
+                logger.error(f"⚠️ Erro ao validar firewall de saída para {numero_usuario}: {e}")
             # Na dúvida, se o firewall falhar (ex: erro de import), bloqueamos por segurança em modo proativo
             # Mas se for uma resposta direta de chat, o erro seria capturado antes.
 

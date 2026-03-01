@@ -203,7 +203,8 @@ def expert_consensus_review(state: AgentState):
                     if admin_num:
                         n8n.enviar_resposta_usuario(
                             admin_num, 
-                            "🚨 *ALERTA GOOGLE GEMINI*\nO limite de cota gratuita (429) foi atingido. As revisões de segurança estão temporariamente suspensas."
+                            "🚨 *ALERTA GOOGLE GEMINI*\nO limite de cota gratuita (429) foi atingido. As revisões de segurança estão temporariamente suspensas.",
+                            bypass_firewall=True
                         )
 
         # 2. Obter refinamento final do Claude (Veredito)
@@ -223,7 +224,8 @@ def expert_consensus_review(state: AgentState):
                     if admin_num:
                         n8n.enviar_resposta_usuario(
                             admin_num, 
-                            "🚨 *ALERTA ANTHROPIC CLAUDE*\nSeu saldo de créditos acabou. O refinamento de respostas de elite está temporariamente desativado."
+                            "🚨 *ALERTA ANTHROPIC CLAUDE*\nSeu saldo de créditos acabou. O refinamento de respostas de elite está temporariamente desativado.",
+                            bypass_firewall=True
                         )
         elif gemini_opinion:
             final_response = f"{last_ai_message}\n\n---\n✨ **Revisão de Segurança (Consenso IAs):**\n{gemini_opinion}"
@@ -237,7 +239,8 @@ def expert_consensus_review(state: AgentState):
                  if admin_num:
                      n8n.enviar_resposta_usuario(
                          admin_num, 
-                         f"🚨 *ALERTA TRAVEL AI*\nO Claude 3.5 falhou por falta de créditos ou erro de API. Verifique sua conta Anthropic."
+                         f"🚨 *ALERTA TRAVEL AI*\nO Claude 3.5 falhou por falta de créditos ou erro de API. Verifique sua conta Anthropic.",
+                         bypass_firewall=True
                      )
             final_response = last_ai_message
 
