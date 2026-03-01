@@ -114,3 +114,41 @@ class SerpApiService:
         except Exception as e:
             logger.error(f"Erro no Google Flights SerpApi: {e}")
             return "Erro ao consultar Google Flights."
+    def search(self, query: str) -> str:
+        """
+        Realiza uma busca geral no Google via SerpApi.
+        """
+        if not self.api_key:
+            return "Busca geral indisponível (Chave não configurada)."
+            
+        params = {
+            "q": query,
+            "api_key": self.api_key,
+            "hl": "pt",
+            "gl": "br"
+        }
+        
+        try:
+            logger.info(f"🔍 Buscando no Google: {query}")
+            response = requests.get(self.base_url, params=params, timeout=15)
+            data = response.json()
+            
+            results = data.get("organic_results", [])
+            answer_box = data.get("answer_box", {})
+            
+            if not results and not answer_box:
+                return "Nenhum resultado encontrado."
+                
+            res_text = ""
+            if answer_box:
+                res_text += f"Resposta Direta: {answer_box.get('answer') or answer_box.get('snippet')}\n\n"
+                
+            res_text += "Resultados da Busca:\n"
+            for res in results[:5]:
+                res_text += f"- {res.get('title')}: {res.get('snippet')} (Fonte: {res.get('link')})\n"
+                
+            return res_text
+            
+        except Exception as e:
+            logger.error(f"Erro na busca geral SerpApi: {e}")
+            return "Falha ao realizar busca no Google."

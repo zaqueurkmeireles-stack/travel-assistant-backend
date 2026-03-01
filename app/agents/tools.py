@@ -209,6 +209,16 @@ def search_flights(origin: str, destination: str, departure_date: str, return_da
     return get_duffel_svc().search_flights(origin, destination, departure_date, return_date if return_date else None)
 
 @tool
+def search_government_notices(destination: str, query: str = "") -> str:
+    """
+    Busca avisos oficiais, alertas de segurança e notícias governamentais para um destino.
+    Use para encontrar mudanças em vistos, alertas de saúde ou segurança em sites oficiais (.gov).
+    """
+    search_query = f"official government travel alerts notices {destination} {query} site:gov"
+    logger.info(f"🏛️ Tool: Buscando avisos governamentais para {destination}")
+    return get_serpapi_svc().search(search_query)
+
+@tool
 def search_hotels(city: str, check_in_date: str, check_out_date: str) -> str:
     """
     Busca hotéis reais com preços atuais via Google Hotels.
@@ -395,5 +405,6 @@ ALL_TOOLS = [
     get_local_emergency_numbers,
     generate_social_post,
     get_park_live_status,
-    get_event_venue_details
+    get_event_venue_details,
+    search_government_notices
 ]

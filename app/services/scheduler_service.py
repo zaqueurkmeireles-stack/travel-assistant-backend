@@ -80,6 +80,13 @@ class SchedulerService:
                 id="destination_poi_audit",
                 replace_existing=True
             )
+            # Monitor de Avisos Governamentais - 11:30 todos os dias
+            self.scheduler.add_job(
+                self.monitor_government_alerts,
+                trigger=CronTrigger(hour=11, minute=30),
+                id="gov_alerts_monitor",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -400,3 +407,53 @@ class SchedulerService:
                             logger.info(f"🚨 Alerta de interdição enviado para {user_id} sobre {poi}")
             except Exception as e:
                 logger.error(f"Erro na auditoria de destino para trip {trip.get('id')}: {e}")
+
+    def monitor_government_alerts(self):
+        """Busca notícias e avisos em sites governamentais oficiais para viagens na janela D-7 até Fim."""
+        logger.info("🏛️ Iniciando Monitor de Avisos Governamentais Diário...")
+        today = datetime.now()
+        
+        trips_to_monitor = self.trip_svc.get_active_monitoring_trips(today)
+        
+        for trip in trips_to_monitor:
+            try:
+                dest = trip["destination"]
+                user_id = trip["user_id"]
+                
+                # Para evitar repetição excessiva, podemos checar se já enviamos algo hoje
+                last_gov_check = trip.get("last_gov_alert_date")
+                if last_gov_check == today.strftime("%Y-%m-%d"):
+                    continue
+                
+                logger.info(f"🔎 Buscando avisos oficiais para {dest} ({user_id})...")
+                
+                # Prompt especializado para focar em fontes governamentais
+                prompt = (
+                    f"Você é um especialista em conformidade de viagens. Sua tarefa é buscar o portal oficial do governo de {dest} "
+                    f"ou do consulado/embaixada relevante para encontrar AVISOS IMPORTANTES PARA VIAJANTES hoje ({today.strftime('%Y-%m-%d')}).\n\n"
+                    "FOCO EXCLUSIVO EM:\n"
+                    "1. Mudanças em regras de entrada, vistos ou passaportes.\n"
+                    "2. Alertas de saúde pública ou exigência de vacinas de última hora.\n"
+                    "3. Greves em transporte público, aeroportos ou serviços essenciais anunciadas em sites oficiais.\n"
+                    "4. Avisos de segurança emitidos por órgãos governamentais.\n\n"
+                    "REGRAS CRÍTICAS:\n"
+                    "- Só relate se encontrar informação em SITE OFICIAL (ex: .gov, .edu, sites de consulados).\n"
+                    "- Se não houver avisos novos ou críticos, responda apenas 'SEM_AVISOS_NOVOS'.\n"
+                    "- Seja direto e cite a fonte se possível."
+                )
+                
+                from app.agents.orchestrator import TravelAgent
+                agent = TravelAgent()
+                alert_content = agent.chat(user_input=prompt, thread_id=user_id)
+                
+                if alert_content and "SEM_AVISOS_NOVOS" not in alert_content and len(alert_content) > 30:
+                    msg = f"🏛️ *AVISO GOVERNAMENTAL OFICIAL: {dest.upper()}* 📄\n\n{alert_content}"
+                    self.n8n_svc.enviar_resposta_usuario(user_id, msg)
+                    logger.info(f"📢 Alerta governamental enviado para {user_id} sobre {dest}")
+                    
+                # Marcar que checamos hoje para não repetir o processamento pesado da IA no mesmo dia
+                trip["last_gov_alert_date"] = today.strftime("%Y-%m-%d")
+                self.trip_svc._save_trips()
+                
+            except Exception as e:
+                logger.error(f"Erro no monitor governamental para trip {trip.get('id')}: {e}")

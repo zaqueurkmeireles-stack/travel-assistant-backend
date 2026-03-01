@@ -219,3 +219,34 @@ class TripService:
             except Exception:
                 continue
         return None
+    def get_active_monitoring_trips(self, today: datetime) -> List[Dict[str, Any]]:
+        """
+        Retorna viagens que estão na janela de monitoramento proativo (D-7 até a data de término).
+        Útil para alertas de notícias, segurança e avisos governamentais.
+        """
+        active_trips = []
+        today_date = today.date()
+        
+        for trip in self.trips:
+            try:
+                start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                end_date_str = trip.get("end_date")
+                
+                if end_date_str:
+                    end_dt = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                else:
+                    # Se não tiver data de término, assume 1 dia após o início
+                    from datetime import timedelta
+                    end_dt = start_dt + timedelta(days=1)
+                
+                # Janela: 7 dias antes do início até o fim da viagem
+                from datetime import timedelta
+                monitoring_start = start_dt - timedelta(days=7)
+                
+                if monitoring_start <= today_date <= end_dt:
+                    active_trips.append(trip)
+                    
+            except Exception as e:
+                logger.error(f"Erro ao calcular janela de monitoramento para trip {trip.get('id')}: {e}")
+                
+        return active_trips
