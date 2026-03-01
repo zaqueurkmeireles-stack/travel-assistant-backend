@@ -247,14 +247,27 @@ class TripService:
                     from datetime import timedelta
                     end_dt = start_dt + timedelta(days=1)
                 
-                # Janela: 7 dias antes do início até o fim da viagem
-                from datetime import timedelta
-                monitoring_start = start_dt - timedelta(days=7)
-                
-                if monitoring_start <= today_date <= end_dt:
-                    active_trips.append(trip)
+    def is_trip_active(self, trip_id: str, grace_days: int = 2) -> bool:
+        """Verifica se a viagem ainda está ativa ou dentro do período de carência (X dias após o fim)."""
+        for trip in self.trips:
+            if trip["id"] == trip_id:
+                try:
+                    from datetime import timedelta
+                    # Se não tiver end_date, assume 7 dias após o início como padrão
+                    start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                    end_date_str = trip.get("end_date")
                     
-            except Exception as e:
-                logger.error(f"Erro ao calcular janela de monitoramento para trip {trip.get('id')}: {e}")
+                    if end_date_str:
+                        end_dt = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                    else:
+                        end_dt = start_dt + timedelta(days=7)
+                    
+                    # Carência de X dias após o término
+                    expiry_date = end_dt + timedelta(days=grace_days)
+                    return datetime.now().date() <= expiry_date
+                except Exception as e:
+                    logger.error(f"Erro ao verificar expiração da trip {trip_id}: {e}")
+                    return True # Na dúvida, mantém ativo
+        return False
                 
         return active_trips

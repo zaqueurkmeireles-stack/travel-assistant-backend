@@ -90,16 +90,42 @@ class UserService:
         return self.users.get(uid)
 
     def get_user_role(self, user_id: str) -> str:
-        """Retorna 'admin', 'guest' ou 'unauthorized'"""
+        """Retorna 'admin', 'guest' ou 'unauthorized' com expiração inteligente baseada em viagens."""
         user = self.get_user(user_id)
+        uid = self.normalize_phone(user_id)
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        
+        if uid == admin_number and admin_number:
+            self._ensure_admin()
+            return "admin"
+            
         if not user:
-            uid = self.normalize_phone(user_id)
-            admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
-            if uid == admin_number and admin_number:
-                self._ensure_admin()
-                return "admin"
             return "unauthorized"
-        return user.get("role", "unauthorized")
+            
+        role = user.get("role", "unauthorized")
+        
+        # [SMART EXPIRATION] Se for guest, verificar se ainda tem viagens ativas
+        if role == "guest":
+            authorized_trips = user.get("authorized_trips", [])
+            if not authorized_trips:
+                # Se não tem trip vinculada, mas foi marcado como guest, mantemos por 24h como carência inicial
+                # Ou revertemos se for muito antigo. Para simplificar, vamos checar trips.
+                return "guest" 
+
+            from app.services.trip_service import TripService
+            trip_svc = TripService()
+            
+            has_active_trip = False
+            for trip_id in authorized_trips:
+                if trip_svc.is_trip_active(trip_id, grace_days=2):
+                    has_active_trip = True
+                    break
+            
+            if not has_active_trip:
+                logger.info(f"⏳ Acesso expirado para guest {uid} (Trip concluída + 2 dias).")
+                return "unauthorized"
+                
+        return role
 
     def get_active_trip(self, user_id: str) -> Optional[str]:
         user = self.get_user(user_id)
