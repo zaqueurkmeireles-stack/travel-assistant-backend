@@ -120,6 +120,18 @@ async def chat_endpoint(
         if bot_number and request.user_id == bot_number:
             logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Prevenção de loop infinito).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
+            
+        # 🛑 PREVENÇÃO DE ECO (FORK BOMB): A Evolution API pode estar enviando as respostas do próprio bot de volta.
+        message_str = request.message.strip()
+        bot_signatures = [
+            "BEM-VINDO AO SEVEN ASSISTANT TRAVEL",
+            "Pedido de Acesso!",
+            "seven assistant",
+            "Aqui estão os detalhes da sua viagem"
+        ]
+        if any(sig.lower() in message_str.lower() for sig in bot_signatures) and len(message_str) > 50:
+            logger.info("🛑 Mensagem ignorada: Detectado ECHO da própria resposta do bot.")
+            return ChatResponse(success=True, response="", user_id=request.user_id)
         
         role = user_service.get_user_role(request.user_id)
         # Garantir que o comando "autorizar" funcione sempre
