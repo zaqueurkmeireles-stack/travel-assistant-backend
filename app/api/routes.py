@@ -115,6 +115,11 @@ async def chat_endpoint(
             
         logger.info(f"👤 [NORMALIZADO] {request.user_id}")
         
+        # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias (Eventos de leitura, status, delivery receipts)
+        if not request.message or not request.message.strip():
+            logger.info(f"🛑 Mensagem vazia ignorada de {request.user_id} (Provável recibo de leitura da Evolution).")
+            return ChatResponse(success=True, response="", user_id=request.user_id)
+
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
         bot_number = user_service.normalize_phone(getattr(settings, "BOT_WHATSAPP_NUMBER", ""))
         if bot_number and request.user_id == bot_number:
