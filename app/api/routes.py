@@ -106,7 +106,12 @@ async def chat_endpoint(
         request.user_id = user_service.normalize_phone(request.user_id)
         
         if not request.user_id:
-            logger.error(f"❌ Erro crítico: user_id '{original_user_id}' inválido após normalização.")
+            # 💡 Se for 'desconhecido' ou resultou em vazio, ignoramos silenciosamente para não poluir o log
+            if original_user_id == "desconhecido":
+                logger.debug(f"🛑 Requisição de 'desconhecido' ignorada (Provável evento de sistema da Evolution).")
+            else:
+                logger.warning(f"⚠️ user_id '{original_user_id}' resultou em vazio após normalização. Ignorando.")
+                
             return ChatResponse(
                 success=True,
                 response="",
