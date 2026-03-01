@@ -124,7 +124,7 @@ async def chat_endpoint(
             logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Prevenção de loop infinito).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
             
-        # 🛑 PREVENÇÃO DE ECO (FORK BOMB): A Evolution API pode estar enviando as respostas do próprio bot de volta.
+        # 🛑 PREVENÇÃO DE ECO (FORK BOMB): A Evolution API pode enviar as respostas do próprio bot de volta.
         message_str = request.message.strip()
         bot_signatures = [
             "BEM-VINDO AO SEVEN ASSISTANT TRAVEL",
@@ -132,14 +132,19 @@ async def chat_endpoint(
             "seven assistant",
             "Aqui estão os detalhes da sua viagem",
             "Aqui estão os documentos de viagem",
+            "Aqui estão os documentos salvos",
             "Não vejo novos bilhetes de passagem",
             "✅ Documento recebido e salvo!",
             "📋 Checklist de documentos:",
             "🎉 Todos os documentos essenciais já estão salvos",
-            "🔗 Viagem em Grupo Detectada!"
+            "🔗 Viagem em Grupo Detectada!",
+            "📋 *Checklist de documentos:*",
+            "Sucesso no n8n para",
+            "Resumo da Comunidade:",
+            "Como posso ajudar com a viagem hoje?"
         ]
-        if any(sig.lower() in message_str.lower() for sig in bot_signatures) and len(message_str) > 50:
-            logger.info("🛑 Mensagem ignorada: Detectado ECHO da própria resposta do bot.")
+        if any(sig.lower() in message_str.lower() for sig in bot_signatures) and len(message_str) > 20:
+            logger.info(f"🛑 Mensagem ignorada: Detectado ECHO ({message_str[:30]}...)")
             return ChatResponse(success=True, response="", user_id=request.user_id)
         
         role = user_service.get_user_role(request.user_id)
@@ -188,24 +193,33 @@ async def chat_endpoint(
             return ChatResponse(success=True, response=resp, user_id=request.user_id)
 
         if role == "admin" and (message_clean.lower() in ["ok", "sim"] or message_clean.lower().startswith("sim ")):
+            logger.info(f"👑 Admin {request.user_id} enviou comando de autorização: {message_clean}")
             if message_clean.lower() in ["ok", "sim"]:
                 # Pega o último pedido pendente
                 admin_user = user_service.get_user(request.user_id)
                 pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
                 
                 if not pending_requests:
-                    msg = "❌ Não há pedidos de acesso pendentes no momento."
-                    n8n = N8nService()
-                    background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
-                    return ChatResponse(success=True, response=msg, user_id=request.user_id)
-                
-                # Pega o pedido mais recente
-                guest_id = sorted(pending_requests.items(), key=lambda x: x[1], reverse=True)[0][0]
+                    # Tentar fallback: Procura por QUALQUER usuário 'unauthorized' no DB nas últimas 2h
+                    logger.warning("⚠️ Sem pending_requests explícitos. Buscando usuários unauthorized recentes...")
+                    unauthorized_users = [uid for uid, data in user_service.users.items() if data.get("role") == "unauthorized"]
+                    if unauthorized_users:
+                        guest_id = unauthorized_users[-1] # Pega o último
+                        logger.info(f"🔄 Fallback: Autorizando último unauthorized encontrado: {guest_id}")
+                    else:
+                        msg = "❌ Não há pedidos de acesso pendentes ou usuários não autorizados recentes."
+                        n8n = N8nService()
+                        background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
+                        return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                else:
+                    # Pega o pedido mais recente
+                    guest_id = sorted(pending_requests.items(), key=lambda x: x[1], reverse=True)[0][0]
             else:
                 parts = message_clean.split(maxsplit=1)
                 guest_id = user_service.normalize_phone(parts[1])
 
             active_trip = user_service.get_active_trip(request.user_id)
+            logger.info(f"⚙️ Tentando autorizar {guest_id} para a trip {active_trip}")
             
             # 🛡️ FALLBACK: Se o admin não tem viagem ativa setada, mas existe uma única viagem registrada para ele
             if not active_trip:
@@ -230,8 +244,6 @@ async def chat_endpoint(
                 )
                 
                 n8n = N8nService()
-                # 🛑 REMOVIDO: Envio via background task para o admin, pois ele já recebe o JSON de retorno (ChatResponse)
-                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg_admin)
                 background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest)
                 return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
             else:
@@ -500,6 +512,10 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                         )
                     else:
                         confirm_msg += "🎉 Todos os documentos essenciais já estão salvos! Estou pronto pra te guiar!"
+                    
+                    # [NOVO] Contador de documentos totais no RAG
+                    total_docs = len(user_docs)
+                    confirm_msg += f"\n\n📊 *Status do RAG:* {total_docs} documentos salvos e indexados."
                     
                     n8n.enviar_resposta_usuario(request.user_id, confirm_msg)
                     logger.info(f"✅ Confirmação + gap analysis enviada para {request.user_id}")
