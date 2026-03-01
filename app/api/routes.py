@@ -119,6 +119,7 @@ async def chat_endpoint(
         
         # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias (Eventos de leitura, status, delivery receipts)
         if not request.message or not request.message.strip():
+            logger.info(f"🛑 [FILTRO] Mensagem vazia ou ruído ignorado de {request.user_id}")
             return ChatResponse(success=True, response="", user_id=request.user_id)
 
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
@@ -159,7 +160,7 @@ async def chat_endpoint(
         
         # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
         if "@g.us" in request.user_id:
-            logger.info(f"👥 Grupo detectado e ignorado: {request.user_id}")
+            logger.info(f"👥 [SEGURANÇA] Grupo detectado e BLOQUEADO: {request.user_id}")
             return ChatResponse(success=True, response="", user_id=request.user_id)
         
         role = user_service.get_user_role(request.user_id)
