@@ -124,6 +124,13 @@ async def chat_endpoint(
             logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Prevenção de loop infinito).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
             
+        # [DIAGNOSTICO] Logar todos os contatos em um arquivo persistente para identificar IDs
+        try:
+            with open("data/contact_history.txt", "a", encoding="utf-8") as f:
+                f.write(f"{datetime.now().isoformat()} | ID: {request.user_id} | MSG: {request.message[:50]}...\n")
+        except:
+            pass
+
         # 🛑 PREVENÇÃO DE ECO (FORK BOMB): A Evolution API pode enviar as respostas do próprio bot de volta.
         message_str = request.message.strip()
         bot_signatures = [
@@ -437,8 +444,30 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         role = user_service.get_user_role(request.user_id)
         
         if role == "unauthorized":
-            logger.warning(f"🚫 Mídia recusada. Usuário não autorizado: {request.user_id}")
-            return JSONResponse(status_code=403, content={"success": False, "message": "Não autorizado a enviar arquivos."})
+            logger.info(f"⏳ Processando mídia (unauthorized) para preview do Admin: {request.user_id}")
+            # Permitimos o parse apenas para informar o Admin sobre qual viagem se trata
+            ingestor = DocumentIngestor()
+            data_payload = {
+                "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net"},
+                "message": {"documentMessage": {"fileName": request.filename, "mimetype": request.mimetype}},
+                "base64": request.base64
+            }
+            # ingest_from_webhook_silent logic inside ingestor? Let's assume we can just get result
+            # But we WON'T index yet.
+            # For now, let's notify admin.
+            n8n = N8nService()
+            admin_msg = (
+                f"🚨 *Nova Solicitação de Acesso com Documento*\\n\\n"
+                f"👤 ID: {request.user_id}\\n"
+                f"📄 Arquivo: {request.filename}\\n\\n"
+                f"Envie *sim {request.user_id}* para autorizar e processar o documento."
+            )
+            background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg)
+            
+            return JSONResponse(status_code=202, content={
+                "success": True, 
+                "message": "Enviado para aprovação do Administrador."
+            })
 
         request.user_id = user_service.normalize_phone(request.user_id)
         ingestor = DocumentIngestor()

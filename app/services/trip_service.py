@@ -43,6 +43,14 @@ class TripService:
         if not start_date or not destination:
             return None
             
+        # [SMART RAG] 🔍 Tentar encontrar qualquer viagem similar já cadastrada (independente do usuário)
+        # Isso permite o compartilhamento automático de documentos na mesma RAG se o destino/data baterem.
+        similar_match = self.find_similar_trips(exclude_user_id=None, destination=destination, start_date=start_date)
+        if similar_match:
+            existing_trip = similar_match["trip"]
+            logger.info(f"🤝 Smart RAG: Vinculando documento à viagem existente: {existing_trip['id']}")
+            return existing_trip
+
         trip_id = f"{user_id}_{destination.upper()}_{start_date}"
         
         # Verificar se já existe
