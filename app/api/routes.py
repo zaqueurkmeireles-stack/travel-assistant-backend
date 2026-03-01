@@ -102,6 +102,7 @@ async def chat_endpoint(
         user_service = UserService()
         
         # 🛡️ NORMALIZAÇÃO IMEDIATA (evita erros de prefixo 9 extra)
+        logger.info(f"📡 [INCOMING] Recebido de n8n: {request.user_id}")
         original_user_id = request.user_id
         request.user_id = user_service.normalize_phone(request.user_id)
         
