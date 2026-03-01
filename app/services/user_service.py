@@ -49,7 +49,8 @@ class UserService:
         
         # 🛡️ ALERTA: Se o input tinha caracteres mas resultou em nada (ex: "undefined")
         if not p and phone:
-            logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone}'")
+            if phone != "desconhecido":
+                logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone}'")
             return ""
 
         # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
