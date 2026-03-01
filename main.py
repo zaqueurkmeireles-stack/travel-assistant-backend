@@ -43,6 +43,13 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan
 )
+
+# Health Checks (Easypanel)
+@app.get("/")
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "TravelCompanion AI"}
+
 # API Routes (Injetado automaticamente)
 app.include_router(api_router, prefix="/api", tags=["API"])
 
