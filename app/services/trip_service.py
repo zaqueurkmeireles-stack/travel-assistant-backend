@@ -43,7 +43,7 @@ class TripService:
         if not start_date or not destination:
             return None
             
-        trip_id = f"{user_id}_{destination}_{start_date}"
+        trip_id = f"{user_id}_{destination.upper()}_{start_date}"
         
         # Verificar se já existe
         for trip in self.trips:

@@ -1,8 +1,8 @@
 [
   {
-    "id": "test_user_alerts_999_D7-Place_2026-03-04",
+    "id": "test_USER_alerts_999_D7-Place_2026-03-04",
     "user_id": "test_user_alerts_999",
-    "destination": "D7-Place",
+    "destination": "D7-PLACE",
     "start_date": "2026-03-04",
     "end_date": null,
     "confirmation_code": null,
@@ -14,9 +14,9 @@
     "last_gov_alert_date": "2026-03-01"
   },
   {
-    "id": "test_user_alerts_999_D1-Place_2026-02-26",
+    "id": "test_USER_alerts_999_D1-Place_2026-02-26",
     "user_id": "test_user_alerts_999",
-    "destination": "D1-Place",
+    "destination": "D1-PLACE",
     "start_date": "2026-02-26",
     "end_date": null,
     "confirmation_code": null,
@@ -28,9 +28,9 @@
     "pending_alert": "D-1"
   },
   {
-    "id": "test_user_alerts_999_D0-Place_2026-02-25",
+    "id": "test_USER_alerts_999_D0-Place_2026-02-25",
     "user_id": "test_user_alerts_999",
-    "destination": "D0-Place",
+    "destination": "D0-PLACE",
     "start_date": "2026-02-25",
     "end_date": null,
     "confirmation_code": null,
@@ -41,9 +41,9 @@
     "pending_alert": "D-0"
   },
   {
-    "id": "geo_test_user_777_Frankfurt_2026-02-25",
+    "id": "geo_TEST_user_777_Frankfurt_2026-02-25",
     "user_id": "geo_test_user_777",
-    "destination": "Frankfurt",
+    "destination": "FRANKFURT",
     "start_date": "2026-02-25",
     "end_date": null,
     "confirmation_code": null,
@@ -52,9 +52,9 @@
     "arrival_guide_sent": true
   },
   {
-    "id": "test_user_alerts_999_D7-Place_2026-03-05",
+    "id": "test_USER_alerts_999_D7-Place_2026-03-05",
     "user_id": "test_user_alerts_999",
-    "destination": "D7-Place",
+    "destination": "D7-PLACE",
     "start_date": "2026-03-05",
     "end_date": null,
     "confirmation_code": null,
@@ -66,9 +66,9 @@
     "last_gov_alert_date": "2026-03-01"
   },
   {
-    "id": "test_user_alerts_999_D1-Place_2026-02-27",
+    "id": "test_USER_alerts_999_D1-Place_2026-02-27",
     "user_id": "test_user_alerts_999",
-    "destination": "D1-Place",
+    "destination": "D1-PLACE",
     "start_date": "2026-02-27",
     "end_date": null,
     "confirmation_code": null,
@@ -79,9 +79,9 @@
     "pending_alert": "D-1"
   },
   {
-    "id": "test_user_alerts_999_D0-Place_2026-02-26",
+    "id": "test_USER_alerts_999_D0-Place_2026-02-26",
     "user_id": "test_user_alerts_999",
-    "destination": "D0-Place",
+    "destination": "D0-PLACE",
     "start_date": "2026-02-26",
     "end_date": null,
     "confirmation_code": null,
@@ -92,9 +92,9 @@
     "pending_alert": "D-0"
   },
   {
-    "id": "5541988368783_Lisbon_2026-02-26",
+    "id": "5541988368783_LISBON_2026-02-26",
     "user_id": "5541988368783",
-    "destination": "Lisbon",
+    "destination": "LISBON",
     "start_date": "2026-02-26",
     "end_date": "2026-03-05",
     "confirmation_code": "LIS777",
@@ -106,9 +106,9 @@
     "last_gov_alert_date": "2026-03-01"
   },
   {
-    "id": "test_admin_FallbackCity_2026-05-01",
+    "id": "test_ADMIN_FallbackCity_2026-05-01",
     "user_id": "test_admin",
-    "destination": "FallbackCity",
+    "destination": "FALLBACKCITY",
     "start_date": "2026-05-01",
     "end_date": null,
     "confirmation_code": null,
@@ -116,9 +116,9 @@
     "created_at": "2026-02-28T18:20:18.753520"
   },
   {
-    "id": "cleanup_user_ExpiredCity_2026-01-01",
+    "id": "cleanup_USER_ExpiredCity_2026-01-01",
     "user_id": "cleanup_user",
-    "destination": "ExpiredCity",
+    "destination": "EXPIREDCITY",
     "start_date": "2026-01-01",
     "end_date": "2026-02-25",
     "confirmation_code": null,
@@ -126,9 +126,9 @@
     "created_at": "2026-02-28T18:20:48.861806"
   },
   {
-    "id": "554188368783_FallbackCity_2026-05-01",
+    "id": "554188368783_FALLBACKCITY_2026-05-01",
     "user_id": "554188368783",
-    "destination": "FallbackCity",
+    "destination": "FALLBACKCITY",
     "start_date": "2026-05-01",
     "end_date": null,
     "confirmation_code": null,
@@ -136,9 +136,9 @@
     "created_at": "2026-02-28T18:21:17.437513"
   },
   {
-    "id": "000000000000_ExpiredCity_2026-01-01",
+    "id": "000000000000_EXPIREDCITY_2026-01-01",
     "user_id": "000000000000",
-    "destination": "ExpiredCity",
+    "destination": "EXPIREDCITY",
     "start_date": "2026-01-01",
     "end_date": "2026-02-25",
     "confirmation_code": null,
@@ -146,17 +146,17 @@
     "created_at": "2026-02-28T18:21:18.090156"
   },
   {
-    "id": "test_user_lisboa_2026-03-08",
+    "id": "test_USER_lisboa_2026-03-08",
     "user_id": "5541988368783",
-    "destination": "Lisboa (Teste Gov)",
+    "destination": "LISBOA (TESTE GOV)",
     "start_date": "2026-03-08",
     "alerts_sent": [],
     "last_gov_alert_date": "2026-03-01"
   },
   {
-    "id": "554199999999_Lisboa_2026-04-14",
+    "id": "554199999999_LISBOA_2026-04-14",
     "user_id": "554199999999",
-    "destination": "Lisboa",
+    "destination": "LISBOA",
     "start_date": "2026-04-14",
     "end_date": null,
     "confirmation_code": null,
