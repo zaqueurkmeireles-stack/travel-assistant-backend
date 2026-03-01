@@ -122,7 +122,7 @@ async def chat_endpoint(
         
         # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias (Eventos de leitura, status, delivery receipts)
         if not request.message or not request.message.strip():
-            logger.info(f"🛑 Mensagem vazia ignorada de {request.user_id} (Provável recibo de leitura da Evolution).")
+            logger.debug(f"🛑 Mensagem vazia ignorada de {request.user_id} (Provável recibo de leitura da Evolution).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
 
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
