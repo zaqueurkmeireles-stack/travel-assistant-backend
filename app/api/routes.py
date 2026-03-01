@@ -156,6 +156,11 @@ async def chat_endpoint(
             logger.info(f"🛑 Mensagem ignorada: Detectado ECHO ({message_str[:30]}...)")
             return ChatResponse(success=True, response="", user_id=request.user_id)
         
+        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
+        if "@g.us" in request.user_id:
+            logger.info(f"👥 Grupo detectado e ignorado: {request.user_id}")
+            return ChatResponse(success=True, response="", user_id=request.user_id)
+        
         role = user_service.get_user_role(request.user_id)
         # Garantir que o comando "autorizar" funcione sempre
         message_clean = request.message.strip()
@@ -281,97 +286,23 @@ async def chat_endpoint(
                 return ChatResponse(success=True, response=msg, user_id=request.user_id)
 
         if role == "unauthorized":
-            n8n = N8nService()
-            phase = user_service.get_user_phase(request.user_id)
-            message_clean = request.message.strip().lower()
-
-            # FASE 0: Início do contato
-            if not phase:
-                guest_msg = (
-                    "⭐️ **BEM-VINDO AO SEVEN ASSISTANT TRAVEL** ⭐️\n\n"
-                    "Olá! Sou o assistente concierge exclusivo para viagens de elite.\n\n"
-                    "Vejo que ainda não temos o seu cadastro liberado. **Você já possui uma viagem planejada ou compartilhada com algum de nossos membros?**\n"
-                    "(Responda: *Sim* ou *Não*)"
+            # [REGISTRO] Salva na fila de espera do Admin com o Nome
+            should_notify = user_service.register_access_request(request.user_id, request.push_name)
+            
+            if should_notify:
+                n8n = N8nService()
+                admin_msg = (
+                    f"🚨 *Nova Solicitação de Acesso*\n\n"
+                    f"👤 Nome: {request.push_name}\n"
+                    f"📱 ID: {request.user_id}\n"
+                    f"💬 Mensagem: \"{request.message}\"\n\n"
+                    f"Envie *sim {request.user_id}* para autorizar."
                 )
-                user_service.set_user_phase(request.user_id, "discovery_yes_no")
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
-                return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
+                background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg)
+                logger.info(f"📢 Admin notificado sobre acesso pendente: {request.user_id}")
 
-            # FASE 1: Resposta Sim/Não
-            elif phase == "discovery_yes_no":
-                if any(w in message_clean for w in ["sim", "s ", "s", "yes", "tenho"]):
-                    guest_msg = "Ótimo! Para eu localizar seu grupo, **quem é a pessoa que está compartilhando a viagem com você?** (Pode me dizer o nome ou o número do WhatsApp)."
-                    user_service.set_user_phase(request.user_id, "discovery_who")
-                else:
-                    guest_msg = (
-                        "Entendido! Vou avisar o nosso **Administrador** sobre seu interesse.\n\n"
-                        "⏳ Assim que ele liberar seu acesso, poderei planejar roteiros incríveis para você!"
-                    )
-                    user_service.set_user_phase(request.user_id, "discovery_waiting")
-                    # Notifica admin como fallback
-                    user_service.register_access_request(request.user_id)
-                    admin_raw = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
-                    if admin_raw:
-                        admin_number = user_service.normalize_phone(admin_raw)
-                        admin_msg = f"⚠️ *Novo Pedido de Acesso!*\nO número {request.user_id} entrou em contato mas não identificou grupo.\n\nPara autorizar, responda:\n*sim {request.user_id}*"
-                        background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
-
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
-                return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
-
-            # FASE 2: Identificação do Host
-            elif phase == "discovery_who":
-                host_info = user_service.find_user_by_name_or_phone(message_clean)
-                if host_info:
-                    host_id, host_name = host_info
-                    guest_msg = (
-                        f"Perfeito! Localizei o planejamento do(a) **{host_name}**.\n\n"
-                        f"Já enviei um pedido para ele(a) confirmar sua entrada no grupo. "
-                        "Aguarde um instante enquanto ele autoriza! ⏳"
-                    )
-                    user_service.set_user_phase(request.user_id, "discovery_waiting")
-                    
-                    # Notifica o HOST (Admin)
-                    n8n = N8nService()
-                    admin_msg = (
-                        f"🔔 *Pedido de Vinculação!*\n\nO usuário {request.user_id} informou que viaja com você.\n"
-                        f"Deseja autorizar o acesso dele aos seus documentos e planejamentos de viagem?\n\n"
-                        f"Para autorizar agora, responda:\n*sim {request.user_id}*"
-                    )
-                    background_tasks.add_task(n8n.enviar_resposta_usuario, host_id, admin_msg)
-                    # Registra no registro de requests para o comando 'sim' funcionar
-                    user_service.register_access_request(request.user_id, request.push_name) 
-                else:
-                    guest_msg = (
-                        "Não consegui localizar esse nome no meu sistema. 😕\n\n"
-                        "Vou encaminhar seu contato para o nosso **Administrador Geral** verificar e te liberar manualmente. "
-                        "Fique atento, logo entraremos em contato!"
-                    )
-                    user_service.set_user_phase(request.user_id, "discovery_waiting")
-                    # Fallback para Admin Geral
-                    should_notify = user_service.register_access_request(request.user_id, request.push_name)
-                    if should_notify:
-                        admin_raw = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
-                        if admin_raw:
-                            admin_number = user_service.normalize_phone(admin_raw)
-                            admin_msg = (
-                                f"🚨 *Nova Solicitação de Acesso (Fallback)*\n\n"
-                                f"👤 Nome: {request.push_name}\n"
-                                f"📱 ID: {request.user_id}\n"
-                                f"💬 Mensagem: \"{request.message}\"\n\n"
-                                f"O usuário não conseguiu identificar um host. Envie *sim {request.user_id}* para autorizar."
-                            )
-                            background_tasks.add_task(n8n.enviar_resposta_usuario, admin_number, admin_msg)
-                            logger.info(f"📢 Admin notificado sobre acesso pendente (fallback): {request.user_id}")
-
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
-                return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
-
-            # FASE 3: Aguardando (Ignora ou re-avisa se insistir)
-            else:
-                guest_msg = "⏳ Seu pedido de acesso está sendo analisado pelo Administrador. Você receberá uma confirmação em breve!"
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, guest_msg)
-                return ChatResponse(success=True, response=guest_msg, user_id=request.user_id)
+            # [SILENT MODE] O robô JAMAIS deve responder ao usuário não autorizado.
+            return ChatResponse(success=True, response="", user_id=request.user_id)
 
         # Passamos o user_id como thread_id para o LangGraph manter a memória da conversa
         resposta_ia = agent.chat(user_input=request.message, thread_id=request.user_id)
@@ -456,20 +387,16 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
     try:
         from app.services.user_service import UserService
         user_service = UserService()
+        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
+        if "@g.us" in request.user_id:
+            logger.info(f"👥 Grupo detectado e ignorado (Media): {request.user_id}")
+            return JSONResponse(status_code=202, content={"success": True, "message": "Ignorado (Grupo)"})
+
         role = user_service.get_user_role(request.user_id)
         
         if role == "unauthorized":
             logger.info(f"⏳ Processando mídia (unauthorized) para preview do Admin: {request.user_id}")
-            # Permitimos o parse apenas para informar o Admin sobre qual viagem se trata
-            ingestor = DocumentIngestor()
-            data_payload = {
-                "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net"},
-                "message": {"documentMessage": {"fileName": request.filename, "mimetype": request.mimetype}},
-                "base64": request.base64
-            }
-            # ingest_from_webhook_silent logic inside ingestor? Let's assume we can just get result
-            # But we WON'T index yet.
-            # For now, let's notify admin.
+            # [SILENT MODE] Notifica apenas o Admin, NUNCA responde ao usuário.
             n8n = N8nService()
             admin_msg = (
                 f"🚨 *Nova Solicitação de Acesso com Documento*\n\n"
