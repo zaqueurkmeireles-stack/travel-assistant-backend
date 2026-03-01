@@ -104,12 +104,6 @@ async def chat_endpoint(
         request.user_id = user_service.normalize_phone(request.user_id)
         
         if not request.user_id:
-            # 💡 Se for 'desconhecido' ou resultou em vazio, ignoramos silenciosamente para não poluir o log
-            if original_user_id == "desconhecido":
-                logger.debug(f"🛑 Requisição de 'desconhecido' ignorada (Provável evento de sistema da Evolution).")
-            else:
-                logger.warning(f"⚠️ user_id '{original_user_id}' resultou em vazio após normalização. Ignorando.")
-                
             return ChatResponse(
                 success=True,
                 response="",
@@ -122,7 +116,6 @@ async def chat_endpoint(
         
         # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias (Eventos de leitura, status, delivery receipts)
         if not request.message or not request.message.strip():
-            logger.debug(f"🛑 Mensagem vazia ignorada de {request.user_id} (Provável recibo de leitura da Evolution).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
 
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
