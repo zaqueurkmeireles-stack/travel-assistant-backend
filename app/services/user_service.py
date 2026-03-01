@@ -51,15 +51,23 @@ class UserService:
 
     def normalize_phone(self, phone: str) -> str:
         """
-        Normaliza o número removendo o 9º dígito (Brasil) de forma robusta.
+        Normaliza o número removendo o 9º dígito (Brasil) e preservando domínios de grupo.
         """
         if not phone: return ""
-        p = "".join(filter(str.isdigit, str(phone)))
+        
+        phone_str = str(phone).strip().lower()
+        
+        # 🛡️ SE FOR GRUPO (@g.us), preservamos o JID completo para evitar DMs a estranhos
+        if "@g.us" in phone_str:
+            return phone_str
+            
+        # Para contatos normais (@s.whatsapp.net ou apenas número), limpamos para dígitos
+        p = "".join(filter(str.isdigit, phone_str))
         
         # 🛡️ ALERTA: Se o input tinha caracteres mas resultou em nada (ex: "undefined")
-        if not p and phone:
-            if phone != "desconhecido":
-                logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone}'")
+        if not p and phone_str:
+            if phone_str != "desconhecido":
+                logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone_str}'")
             return ""
 
         # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
