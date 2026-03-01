@@ -234,3 +234,46 @@ class UserService:
             del self.users[uid]["pending_trip_link"]
             self._save_users()
 
+    def find_user_by_name_or_phone(self, query: str) -> Optional[tuple[str, str]]:
+        """
+        Busca um usuário (admin) pelo nome ou número para ajudar na vinculação.
+        Retorna (user_id, name) ou None.
+        """
+        if not query: return None
+        q = query.lower().strip()
+        
+        # Primeiro tenta por número normalizado
+        norm_q = self.normalize_phone(q)
+        if norm_q in self.users:
+            return (norm_q, self.users[norm_q].get("name", norm_q))
+            
+        # Depois tenta por nome (se houver o campo name no BD)
+        for uid, data in self.users.items():
+            name = data.get("name", "").lower()
+            if q in name and name != "":
+                return (uid, data.get("name"))
+                
+        # [Fallback Especial] Se o usuário digitar "Zaqueu" e ele for o admin configurado
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        if "zaqueu" in q or "admin" in q:
+            return (admin_number, "Zaqueu")
+            
+        return None
+
+    def set_user_phase(self, user_id: str, phase: Optional[str]):
+        """Define em qual fase de interação/cadastro o usuário está."""
+        uid = self.normalize_phone(user_id)
+        if uid not in self.users:
+            self.users[uid] = {
+                "role": "unauthorized",
+                "authorized_trips": [],
+                "created_at": datetime.now().isoformat()
+            }
+        self.users[uid]["phase"] = phase
+        self._save_users()
+
+    def get_user_phase(self, user_id: str) -> Optional[str]:
+        """Retorna a fase atual do usuário."""
+        user = self.get_user(user_id)
+        return user.get("phase") if user else None
+
