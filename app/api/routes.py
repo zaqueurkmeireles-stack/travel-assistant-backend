@@ -33,9 +33,9 @@ class ChatResponse(BaseModel):
 
 class MediaRequest(BaseModel):
     user_id: str
-    base64: str
-    filename: str
-    mimetype: str
+    base64: Optional[str] = ""
+    filename: Optional[str] = "arquivo"
+    mimetype: Optional[str] = "application/octet-stream"
     push_name: Optional[str] = "Desconhecido"
 
 class LocationRequest(BaseModel):
@@ -104,6 +104,12 @@ async def chat_endpoint(
         # 🛡️ NORMALIZAÇÃO IMEDIATA
         logger.info(f"📡 [INCOMING] Recebido de n8n: {request.user_id}")
         logger.debug(f"🔍 [DEBUG BODY] {request.dict()}")
+        
+        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
+        if "@g.us" in request.user_id:
+            logger.info(f"👥 Grupo detectado e ignorado: {request.user_id}")
+            return ChatResponse(success=True, response="", user_id=request.user_id)
+
         original_user_id = request.user_id
         request.user_id = user_service.normalize_phone(request.user_id)
         

@@ -66,7 +66,7 @@
                         },
                         {
                             "name": "url_location",
-                            "value": "http://travel-assistant-backend:8000/webhook/whatsapp/location"
+                            "value": "http://travel-assistant-backend:8000/api/webhook/location"
                         },
                         {
                             "name": "url_chat",
