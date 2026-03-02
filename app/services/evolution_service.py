@@ -40,12 +40,14 @@ class EvolutionService:
             }
             
             payload = {
-                "messageKey": {
-                    "id": message_id
+                "message": {
+                    "key": {
+                        "id": message_id
+                    }
                 }
             }
             if remote_jid:
-                payload["messageKey"]["remoteJid"] = remote_jid
+                payload["message"]["key"]["remoteJid"] = remote_jid
             
             logger.info(f"📥 Solicitando Base64 para mensagem {message_id} via REST API: {url}")
             response = requests.post(url, json=payload, headers=headers, timeout=15)
