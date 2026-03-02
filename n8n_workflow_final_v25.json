@@ -29,6 +29,12 @@
                             "value1": "={{ ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || '').includes('@g.us') }}",
                             "value2": false
                         }
+                    ],
+                    "string": [
+                        {
+                            "value1": "={{ $json.body.instance }}",
+                            "value2": "Seven_Assistant"
+                        }
                     ]
                 }
             },

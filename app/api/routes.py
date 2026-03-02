@@ -474,6 +474,15 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         result = ingestor.ingest_from_webhook(data_payload)
         
         if result.get("success"):
+            # 🛡️ VERICAÇÃO DE RELEVÂNCIA: Se o documento não parece ser de viagem, avisar o usuário
+            is_travel = result.get("is_travel_content", True)
+            if not is_travel:
+                logger.warning(f"⚠️ Documento irrelevante detectado para {request.user_id}: {request.filename}")
+                n8n = N8nService()
+                warning_msg = "li aqui esse documento e vi que não possui relação com a viagem , tem certeza que quer incluir na RAG? "
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, warning_msg)
+                return JSONResponse(status_code=202, content={"success": True, "message": "Aviso de irrelevância enviado."})
+
             # 🔑 ENVIAR CONFIRMAÇÃO + GAP ANALYSIS ao usuário via WhatsApp
             doc_type = result.get("document_type", "documento")
             preview = result.get("text_preview", "")

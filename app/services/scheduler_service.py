@@ -146,6 +146,8 @@ class SchedulerService:
             f"Sua missão é gerar uma mensagem de WhatsApp extremamente útil, carinhosa e proativa baseada nos documentos dele no RAG.\n\n"
             "DIRETRIZES POR TIPO:\n"
             "- **D-7 (Uma semana antes)**: Anime o usuário! Mencione se falta algum documento (gap analysis). "
+            "**MARKETING PROATIVO**: Destaque que você é especialista em guiar a família em **Parques Temáticos** (Disney, Universal, etc), **Shows** e grandes eventos de **Automobilismo** (como F1). "
+            "Diga que ele pode te enviar os **ingressos (tickets)** agora mesmo para que você possa ler e já começar a organizar o dia para que eles aproveitem o máximo da diversão.\n"
             "**AUDITORIA DE ENTRADA**: Use a ferramenta 'search_real_travel_tips' para verificar requisitos de VISTO, VACINAS obrigatórias e SEGURO VIAGEM para o destino. "
             "Pesquise se o lugar exige comprovação de fundos ou se há alertas de saúde recentes (como surtos).\n"
             "- **D-1 (Véspera)**: Relembre o horário do voo e peça para fazer o CHECK-IN AGORA. "

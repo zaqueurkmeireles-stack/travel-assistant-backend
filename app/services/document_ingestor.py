@@ -192,6 +192,7 @@ class DocumentIngestor:
                 "filename": filename, 
                 "document_type": metadata["document_type"],
                 "text_preview": extracted_text[:100],
+                "is_travel_content": parse_result.get("is_travel_content", True),
                 "trip_match": trip_match,
                 "audit_report": audit_report  # Contém alerta proativo se houver gaps
             }

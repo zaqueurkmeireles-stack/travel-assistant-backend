@@ -86,7 +86,8 @@ class OpenAIService:
                     "- 'venue': Local do evento ou atração específica.\n"
                     "- 'gate': Portão de acesso (para eventos).\n"
                     "- 'points_of_interest': Lista de lugares ou atrações mencionadas (ex: ['Torrey Pines State Park', 'USS Midway']).\n"
-                    "- 'summary': Breve resumo do documento."
+                    "- 'summary': Breve resumo do documento.\n"
+                    "- 'is_travel_content': Booleano. True se o documento for claramente relacionado a viagem (passagem, hotel, ticket de parque, seguro, boucher de carro, roteiro) e False se for algo sem relação (receita, documento pessoal sem viagem, notícia, etc)."
                 )
             },
             {
