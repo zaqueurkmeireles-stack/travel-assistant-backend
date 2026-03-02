@@ -20,8 +20,8 @@ class DocumentIngestor:
         self.parser_factory = ParserFactory()
         logger.info("✅ DocumentIngestor inicializado")
         
-    def ingest_from_webhook(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Processa o payload do Evolution API e indexa no RAG"""
+    def ingest_from_webhook(self, data: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:
+        """Processa o payload do Evolution API e indexa no RAG. Se dry_run=True, apenas parseia e busca matches."""
         try:
             # 1. Extrair informações básicas
             message = data.get("message", {})
@@ -82,7 +82,7 @@ class DocumentIngestor:
                             break
                 
                 folder_id = self.drive_svc.get_trip_media_folder(sender_number, trip_name)
-                if folder_id:
+                if folder_id and not dry_run:
                     file_id = self.drive_svc.upload_file(file_content, filename, mimetype, folder_id)
                     drive_link = f"https://drive.google.com/file/d/{file_id}/view"
                     logger.info(f"📸 Mídia salva no Drive: {drive_link}")
@@ -111,22 +111,28 @@ class DocumentIngestor:
                 extracted_text = str(parse_result)
             
             # 4. Registrar ou atualizar a Viagem com base no documento
-            trip = self.trip_svc.add_trip_from_doc(sender_number, parse_result)
+            trip = None
+            if not dry_run:
+                trip = self.trip_svc.add_trip_from_doc(sender_number, parse_result)
+            else:
+                # Em dry_run, apenas extraímos a trip para match, sem salvar
+                trip = self.trip_svc.extract_trip_data(parse_result)
             
             from app.services.user_service import UserService
             user_service = UserService()
             
-            if trip:
-                logger.info(f"📅 Viagem vinculada: {trip['destination']} em {trip['start_date']}")
+            if trip and not dry_run:
+                logger.info(f"📅 Viagem vinculada: {trip['destination']} en {trip['start_date']}")
                 user_service.set_active_trip(sender_number, trip["id"])
                 
             active_trip = user_service.get_active_trip(sender_number)
             
             # 5. Remover versão anterior do MESMO ARQUIVO se existir (Update)
             doc_type = parse_result.get("document_type", "geral")
-            removed = self.rag_svc.delete_documents_by_type(sender_number, doc_type, active_trip, filename)
-            if removed:
-                logger.info(f"🔄 Arquivo '{filename}' anterior substituído por nova versão.")
+            if not dry_run:
+                removed = self.rag_svc.delete_documents_by_type(sender_number, doc_type, active_trip, filename)
+                if removed:
+                    logger.info(f"🔄 Arquivo '{filename}' anterior substituído por nova versão.")
             
             # 6. Indexar no RAG com o Trip ID (em Chunks de ~4000 chars para melhor retrieval)
             metadata = {
@@ -137,21 +143,22 @@ class DocumentIngestor:
                 "document_type": doc_type
             }
             
-            # ✂️ Lógica de Chunking: divide textos grandes em pedaços menores
-            chunk_size = 4000
-            overlap = 200
-            chunks = []
-            
-            if len(extracted_text) > chunk_size:
-                for i in range(0, len(extracted_text), chunk_size - overlap):
-                    chunk = extracted_text[i:i + chunk_size]
-                    chunks.append(chunk)
-                logger.info(f"✂️ Documento fatiado em {len(chunks)} chunks para indexação.")
-            else:
-                chunks = [extracted_text]
+            if not dry_run:
+                # ✂️ Lógica de Chunking: divide textos grandes em pedaços menores
+                chunk_size = 4000
+                overlap = 200
+                chunks = []
+                
+                if len(extracted_text) > chunk_size:
+                    for i in range(0, len(extracted_text), chunk_size - overlap):
+                        chunk = extracted_text[i:i + chunk_size]
+                        chunks.append(chunk)
+                    logger.info(f"✂️ Documento fatiado em {len(chunks)} chunks para indexação.")
+                else:
+                    chunks = [extracted_text]
 
-            for chunk_content in chunks:
-                self.rag_svc.add_document(chunk_content, metadata)
+                for chunk_content in chunks:
+                    self.rag_svc.add_document(chunk_content, metadata)
             
             # 7. Detectar se outro usuário tem viagem similar (mesma dest + data ±3 dias)
             trip_match = None

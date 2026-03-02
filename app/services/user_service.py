@@ -199,7 +199,7 @@ class UserService:
         logger.info(f"✅ Usuário {uid} autorizado para a viagem {trip_id} por {admin_id}")
         return trip_id
 
-    def register_access_request(self, guest_id: str, push_name: str = "Desconhecido") -> bool:
+    def register_access_request(self, guest_id: str, push_name: str = "Desconhecido", suggested_trip_id: str = None) -> bool:
         """Registra uma tentativa de acesso não autorizada. Retorna True se o admin deve ser notificado agora (throttle)."""
         uid = self.normalize_phone(guest_id)
         admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
@@ -211,7 +211,7 @@ class UserService:
             return False
             
         pending_requests = self.users[admin_number].setdefault("pending_requests", {})
-        # [MODIFICADO] Armazena objeto com data e nome
+        # [MODIFICADO] Armazena objeto com data, nome e trip sugerida
         request_data = pending_requests.get(uid)
         
         now = datetime.now()
@@ -233,7 +233,8 @@ class UserService:
         # Atualiza a data e nome da última tentativa sempre
         pending_requests[uid] = {
             "timestamp": now.isoformat(),
-            "push_name": push_name
+            "push_name": push_name,
+            "suggested_trip_id": suggested_trip_id or (request_data.get("suggested_trip_id") if isinstance(request_data, dict) else None)
         }
         self.users[admin_number]["pending_requests"] = pending_requests
         self._save_users()

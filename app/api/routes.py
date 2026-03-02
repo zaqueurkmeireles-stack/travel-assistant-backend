@@ -241,10 +241,16 @@ async def chat_endpoint(
                 parts = message_clean.split(maxsplit=1)
                 guest_id = user_service.normalize_phone(parts[1])
 
-            active_trip = user_service.get_active_trip(request.user_id)
-            logger.info(f"⚙️ Tentando autorizar {guest_id} para a trip {active_trip}")
+            # [SMART AUTHORIZATION] Verificar se existe uma trip sugerida (match automático)
+            admin_user = user_service.get_user(request.user_id)
+            pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
+            guest_request = pending_requests.get(guest_id, {})
+            suggested_trip = guest_request.get("suggested_trip_id") if isinstance(guest_request, dict) else None
             
-            # 🛡️ FALLBACK: Se o admin não tem viagem ativa setada, mas existe uma única viagem registrada para ele
+            active_trip = suggested_trip or user_service.get_active_trip(request.user_id)
+            logger.info(f"⚙️ Tentando autorizar {guest_id} para a trip {active_trip} (Sugerida: {bool(suggested_trip)})")
+            
+            # 🛡️ FALLBACK: Se o admin não tem viagem ativa setada nem sugestão, mas existe uma única viagem registrada para ele
             if not active_trip:
                 from app.services.trip_service import TripService
                 trip_svc = TripService()
@@ -409,14 +415,40 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         
         if base_role == "unauthorized":
             logger.info(f"⏳ Processando mídia (unauthorized) para preview do Admin: {request.user_id}")
+            
+            # [SMART MATCH] Tentar extrair dados do documento mesmo sem autorização (Dry Run)
+            ingestor = DocumentIngestor()
+            data_payload = {
+                "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net"},
+                "message": {
+                    "documentMessage": {
+                        "fileName": request.filename,
+                        "mimetype": request.mimetype
+                    }
+                },
+                "base64": request.base64
+            }
+            
+            # Dry run apenas extrai e busca matches, não salva no RAG nem no Drive
+            result = ingestor.ingest_from_webhook(data_payload, dry_run=True)
+            match = result.get("trip_match")
+            
+            suggested_trip_id = None
+            match_info = ""
+            if match:
+                suggested_trip_id = match["trip_id"]
+                match_info = f"\n\n🔍 *Match de Viagem Detectado!*\n📍 Destino: {match['destination']}\n📅 Data: {match['start_date']}\n👤 Host: {match['host_user_id']}\n\nO sistema sugere vincular este usuário ao grupo do Host acima."
+            
             # [SILENT MODE] Notifica apenas o Admin, NUNCA responde ao usuário.
             n8n = N8nService()
+            user_service.register_access_request(request.user_id, request.push_name, suggested_trip_id=suggested_trip_id)
+            
             admin_msg = (
                 f"🚨 *Nova Solicitação de Acesso com Documento*\n\n"
                 f"👤 Nome: {request.push_name}\n"
                 f"📱 ID: {request.user_id}\n"
-                f"📄 Arquivo: {request.filename}\n\n"
-                f"Envie *sim {request.user_id}* para autorizar e processar o documento."
+                f"📄 Arquivo: {request.filename}{match_info}\n\n"
+                f"Envie *sim {request.user_id}* para autorizar."
             )
             background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
             

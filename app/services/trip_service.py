@@ -35,6 +35,23 @@ class TripService:
         except Exception as e:
             logger.error(f"Erro ao salvar viagens: {e}")
 
+    def extract_trip_data(self, doc_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Apenas extrai os dados estruturados de uma trip a partir do doc_data, SEM salvar no BD."""
+        start_date = doc_data.get("start_date")
+        destination = doc_data.get("destination")
+        
+        if not start_date or not destination:
+            return None
+            
+        return {
+            "id": f"TEMP_{destination}_{start_date}",
+            "destination": destination,
+            "start_date": start_date,
+            "end_date": doc_data.get("end_date"),
+            "confirmation_code": doc_data.get("confirmation_code"),
+            "flight_number": doc_data.get("flight_number")
+        }
+
     def add_trip_from_doc(self, user_id: str, doc_data: Dict[str, Any]):
         """Adiciona ou atualiza uma viagem com base no parse do documento"""
         start_date = doc_data.get("start_date")
