@@ -31,8 +31,8 @@ class EvolutionService:
             
         try:
             # Endpoint para converter mensagem em Base64
-            # Documentação Evolution: POST /message/getBase64FromMessage/{instance}
-            url = f"{self.base_url}/message/getBase64FromMessage/{self.instance_name}"
+            # Documentação Evolution: POST /chat/getBase64FromMediaMessage/{instance}
+            url = f"{self.base_url}/chat/getBase64FromMediaMessage/{self.instance_name}"
             
             headers = {
                 "apikey": self.api_key,
@@ -47,7 +47,7 @@ class EvolutionService:
             if remote_jid:
                 payload["messageKey"]["remoteJid"] = remote_jid
             
-            logger.info(f"📥 Solicitando Base64 para mensagem {message_id} via REST API...")
+            logger.info(f"📥 Solicitando Base64 para mensagem {message_id} via REST API: {url}")
             response = requests.post(url, json=payload, headers=headers, timeout=15)
             
             if response.status_code == 200 or response.status_code == 201:
