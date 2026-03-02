@@ -31,8 +31,8 @@ class EvolutionService:
             
         try:
             # Endpoint para converter mensagem em Base64
-            # Documentação Evolution: GET /chat/getBase64FromMessage/{instance}
-            url = f"{self.base_url}/chat/getBase64FromMessage/{self.instance_name}"
+            # Documentação Evolution: POST /message/getBase64FromMessage/{instance}
+            url = f"{self.base_url}/message/getBase64FromMessage/{self.instance_name}"
             
             headers = {
                 "apikey": self.api_key,
