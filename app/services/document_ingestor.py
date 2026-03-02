@@ -127,32 +127,44 @@ class DocumentIngestor:
                 
             active_trip = user_service.get_active_trip(sender_number)
             
-            # 5. [SMART DEDUPLICATOR] Detectar conflitos de passageiro/tipo
+            # 5. [SMART DEDUPLICATOR] Detectar conflitos de passageiro/tipo/segmento
             doc_type = parse_result.get("document_type", "geral")
             traveler = parse_result.get("primary_traveler_name")
+            segment = parse_result.get("segment_info")
             
             if not dry_run and traveler:
-                # Buscar se já existe documento deste tipo para este viajante na mesma trip
-                existing_docs = self.rag_svc.list_user_documents(sender_number, document_type=doc_type)
-                # O list_user_documents retorna strings formatadas, vamos precisar de uma busca mais bruta ou ajustar o RAG
-                # Por simplicidade, vamos verificar se o nome do passageiro aparece na lista de documentos salvos desse tipo
+                # Buscar se já existe documento deste tipo para este viajante
                 has_conflict = False
-                for d_info in existing_docs:
-                    if traveler.lower() in d_info.lower():
-                        has_conflict = True
-                        break
+                for doc in self.rag_svc.documents:
+                    m = doc["metadata"]
+                    # Mesmo usuário (ou trip), mesmo tipo, mesmo viajante
+                    if (m.get("thread_id") == sender_number or m.get("trip_id") == active_trip) and \
+                       m.get("document_type") == doc_type and \
+                       m.get("primary_traveler_name") == traveler:
+                        
+                        # Se tiver informação de segmento (Ida/Volta), só é conflito se for o MESMO segmento
+                        if segment and m.get("segment_info"):
+                            if segment.lower() == m.get("segment_info", "").lower():
+                                has_conflict = True
+                                break
+                        else:
+                            # Se um dos dois não tem segmento, tratamos como conflito de tipo geral para o passageiro
+                            has_conflict = True
+                            break
                 
                 if has_conflict:
-                    logger.info(f"⚠️ Conflito detectado: Documento de {doc_type} para {traveler} já existe.")
+                    logger.info(f"⚠️ Conflito detectado: {doc_type} para {traveler} ({segment or 'geral'}) já existe.")
                     return {
                         "success": True,
                         "status": "conflict",
                         "document_type": doc_type,
                         "traveler": traveler,
+                        "segment": segment,
                         "filename": filename,
-                        "extracted_data": parse_result, # Guardar para uso posterior
+                        "extracted_data": parse_result,
                         "mimetype": mimetype,
-                        "text": extracted_text
+                        "text": extracted_text,
+                        "is_travel_content": parse_result.get("is_travel_content", True)
                     }
             
             # 6. Remover versão anterior do MESMO ARQUIVO se existir (Update simples por nome)

@@ -520,21 +520,17 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
 
             # 🔑 ENVIAR CONFIRMAÇÃO + GAP ANALYSIS ao usuário via WhatsApp
             doc_type = result.get("document_type", "documento")
-            preview = result.get("text_preview", "")
             
             def send_confirmation_and_gap_analysis():
                 """Confirma recebimento, analisa documentos faltantes e oferece compartilhamento"""
                 try:
                     n8n = N8nService()
-                    
-                    # 1. Mensagem de confirmação
                     confirm_msg = (
                         f"✅ *Documento recebido e salvo!*\n\n"
                         f"📄 Arquivo: {request.filename}\n"
                         f"📂 Tipo detectado: {doc_type}\n\n"
                     )
                     
-                    # 2. Gap Analysis - verificar documentos faltantes
                     from app.services.rag_service import RAGService
                     rag = RAGService()
                     user_docs = rag.list_user_documents(request.user_id)
@@ -551,8 +547,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                         if any(w in name_lower for w in ["carro", "car", "rental", "locação", "locadora"]):
                             doc_types_found.add("carro")
                     
-                    if doc_type:
-                        doc_types_found.add(doc_type.lower())
+                    if doc_type: doc_types_found.add(doc_type.lower())
                     
                     missing = []
                     checklist_items = {
@@ -560,62 +555,41 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                         "hotel": "🏨 Reserva de hotel / hospedagem", 
                         "seguro": "🛡️ Seguro viagem / apólice",
                     }
-                    
                     for key, label in checklist_items.items():
-                        if key not in doc_types_found:
-                            missing.append(label)
+                        if key not in doc_types_found: missing.append(label)
                     
                     if missing:
-                        confirm_msg += (
-                            "📋 *Checklist de documentos:*\n"
-                            + "\n".join([f"  ⬜ {item}" for item in missing])
-                            + "\n\n💡 Envie os documentos faltantes aqui no chat que eu salvo tudo pra você!"
-                        )
+                        confirm_msg += "📋 *Checklist de documentos:*\n" + "\n".join([f"  ⬜ {item}" for item in missing]) + "\n\n💡 Envie os documentos faltantes aqui no chat!"
                     else:
-                        confirm_msg += "🎉 Todos os documentos essenciais já estão salvos! Estou pronto pra te guiar!"
+                        confirm_msg += "🎉 Todos os documentos essenciais já estão salvos!"
                     
-                    # [NOVO] Contador de documentos totais no RAG
-                    total_docs = len(user_docs)
-                    confirm_msg += f"\n\n📊 *Status do RAG:* {total_docs} documentos salvos e indexados."
-                    
+                    confirm_msg += f"\n\n📊 *Status do RAG:* {len(user_docs)} documentos salvos."
                     n8n.enviar_resposta_usuario(request.user_id, confirm_msg, bypass_firewall=True)
-                    logger.info(f"✅ Confirmação + gap analysis enviada para {request.user_id}")
                     
-                    # 3. [NOVO] Oferta de Compartilhamento de Viagem (Shared RAG)
+                    # Oferta de Compartilhamento
                     trip_match = result.get("trip_match")
                     if trip_match:
                         host_id = trip_match["host_user_id"]
-                        dest = trip_match["destination"]
-                        date = trip_match["start_date"]
-                        
-                        share_msg = (
-                            f"🔗 *Viagem em Grupo Detectada!*\\n"
-                            f"Notei que o usuário `{host_id}` também tem uma viagem para *{dest}* em *{date}*.\\n\\n"
-                            "Deseja compartilhar seus documentos com ele para que eu possa guiar vocês dois juntos?\\n"
-                            "Responda: *sim compartilhar*"
-                        )
-                        # Salva a intenção pendente para o comando simplificado
-                        user_service.set_pending_trip_link(
-                            guest_id=request.user_id,
-                            host_user_id=host_id,
-                            trip_id=trip_match["trip_id"],
-                            destination=dest,
-                            start_date=date
-                        )
+                        share_msg = f"🔗 *Viagem em Grupo Detectada!*\\nDeseja compartilhar seus documentos com `{host_id}`? Responda: *sim compartilhar*"
+                        user_service.set_pending_trip_link(request.user_id, host_id, trip_match["trip_id"], trip_match["destination"], trip_match["start_date"])
                         n8n.enviar_resposta_usuario(request.user_id, share_msg, bypass_firewall=True)
-                        logger.info(f"🔗 Oferta de compartilhamento enviada para {request.user_id}")
-                    
                 except Exception as e:
                     logger.error(f"❌ Erro ao enviar confirmação: {e}")
             
             background_tasks.add_task(send_confirmation_and_gap_analysis)
-            
-            return {"success": True, "message": f"Documento {request.filename} indexado com sucesso!"}
+            return {"success": True, "message": f"Documento {request.filename} indexado!"}
         else:
+            n8n = N8nService()
+            error_msg = f"❌ *Falha ao processar:* {request.filename}\nErro: {result.get('error', 'Desconhecido')}"
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, error_msg)
             return JSONResponse(status_code=422, content=result)
             
     except Exception as e:
         logger.error(f"❌ Erro no webhook de mídia: {e}")
+        try:
+            n8n = N8nService()
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, f"❌ Erro inesperado ao processar {request.filename}.")
+        except: pass
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 @router.post("/webhook/location")

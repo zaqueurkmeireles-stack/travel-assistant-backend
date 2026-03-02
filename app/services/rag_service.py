@@ -128,9 +128,20 @@ class RAGService:
             vector = self.embeddings.embed_query(text)
             
             # Adicionar ao estado em memória
+            # 🔥 [SMART] Garantir consistência dos metadados para filtros
+            full_metadata = {
+                "filename": metadata.get("filename"),
+                "thread_id": metadata.get("thread_id"),
+                "trip_id": metadata.get("trip_id"),
+                "mimetype": metadata.get("mimetype"),
+                "document_type": metadata.get("document_type", "geral"),
+                "primary_traveler_name": metadata.get("primary_traveler_name"),
+                "segment_info": metadata.get("segment_info")
+            }
+            
             self.documents.append({
                 "text": text,
-                "metadata": metadata
+                "metadata": full_metadata
             })
             
             if len(self.vectors) == 0:
@@ -223,8 +234,15 @@ class RAGService:
                 
                 fname = m.get("filename", "documento")
                 display_name = f"*{fname}*"
+                
+                info_parts = []
                 if m_traveler:
-                    display_name += f" - Passageiro: {m_traveler}"
+                    info_parts.append(f"Passageiro: {m_traveler}")
+                if m.get("segment_info"):
+                    info_parts.append(f"Trecho: {m['segment_info']}")
+                    
+                if info_parts:
+                    display_name += " - " + " | ".join(info_parts)
                 
                 filenames.append(display_name)
                     
