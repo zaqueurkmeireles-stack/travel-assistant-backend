@@ -67,7 +67,7 @@ class EvolutionService:
         """Retorna o conteúdo binário puro (decodificado) da mídia"""
         b64_str = self.get_base64_media(message_id)
         if not b64_str:
-            return bNone
+            return None
             
         try:
             # Remover prefixos data:image/png;base64, se houver
