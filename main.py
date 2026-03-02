@@ -24,8 +24,8 @@ async def lifespan(app: FastAPI):
     # 2. Iniciar agendador de tarefas proativas
     try:
         from app.services.scheduler_service import SchedulerService
-        scheduler = SchedulerService()
-        scheduler.start()
+        app.state.scheduler = SchedulerService()
+        app.state.scheduler.start()
         logger.info("📅 [SCHEDULER] Agendador ativado com sucesso.")
     except Exception as e:
         logger.error(f"❌ [SCHEDULER] Falha ao iniciar: {e}")
@@ -59,6 +59,7 @@ app.add_middleware(
 @app.get("/health", tags=["System"])
 async def health_check():
     """Endpoint de vitalidade do serviço"""
+    logger.debug("🌐 Health Check recebido")
     return {
         "status": "online",
         "service": "Seven Assistant Travel",

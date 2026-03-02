@@ -10,9 +10,9 @@ from loguru import logger
 
 class Settings(BaseSettings):
     # CONFIGURAÇÕES GERAIS
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     API_SECRET_KEY: str = "change-in-production"
     CORS_ORIGINS: str = "*"
