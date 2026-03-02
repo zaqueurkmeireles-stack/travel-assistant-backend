@@ -97,7 +97,10 @@ class TripService:
             "flight_number": doc_data.get("flight_number"), 
             "event_name": doc_data.get("event_name"), # Novo: Para F1/Shows
             "venue": doc_data.get("venue"),           
-            "gate": doc_data.get("gate"),             
+            "gate": doc_data.get("gate"),
+            "proactive_cooldown_minutes": 360, # Padrão: 6 horas
+            "last_proactive_tip_at": None
+        }
             "points_of_interest": doc_data.get("points_of_interest", []), # Lista de locais (ex: Parques Estaduais)
             "alerts_sent": [], 
             "landing_alert_sent": False, 
@@ -207,6 +210,16 @@ class TripService:
                 if partner_id not in trip["shared_with"]:
                     trip["shared_with"].append(partner_id)
                     self._save_trips()
+                return True
+        return False
+
+    def set_proactive_cooldown(self, trip_id: str, minutes: int):
+        """Altera a frequência de dicas proativas para uma viagem específica"""
+        for trip in self.trips:
+            if trip["id"] == trip_id:
+                trip["proactive_cooldown_minutes"] = minutes
+                self._save_trips()
+                logger.info(f"⏱️ Frequência proativa alterada para {minutes} min na trip {trip_id}")
                 return True
         return False
 

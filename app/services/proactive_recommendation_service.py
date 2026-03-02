@@ -21,11 +21,25 @@ class ProactiveRecommendationService:
         logger.info("✅ ProactiveRecommendationService inicializado")
 
     def get_nearby_gems(self, lat: float, lng: float, user_id: str) -> List[Dict]:
-        """Busca lugares de alta qualidade próximos ao usuário."""
-        # Busca pontos turísticos e parques (Gems)
-        gems = self.maps_svc.find_nearby_places(lat, lng, place_type="tourist_attraction", radius=2000)
-        # Filtra por rating alto se disponível
-        return [g for g in gems if g.get("rating", 0) >= 4.0]
+        """Busca lugares de alta qualidade (restaurantes 4.5+ e atrações 4.0+) próximos ao usuário."""
+        # 1. Buscar atrações turísticas
+        attractions = self.maps_svc.find_nearby_places(lat, lng, place_type="tourist_attraction", radius=2000)
+        gems = [g for g in attractions if g.get("rating", 0) >= 4.0]
+
+        # 2. Buscar restaurantes e cafés de elite (4.5+)
+        food_places = self.maps_svc.find_nearby_places(lat, lng, place_type="restaurant", radius=1000)
+        food_places += self.maps_svc.find_nearby_places(lat, lng, place_type="cafe", radius=1000)
+        
+        # Filtrar por rating alto e evitar duplicatas
+        seen_names = set(g["name"] for g in gems)
+        for f in food_places:
+            if f["name"] not in seen_names and f.get("rating", 0) >= 4.5:
+                # Adicionar tag de "Elite" para o prompt da IA
+                f["is_elite_food"] = True
+                gems.append(f)
+                seen_names.add(f["name"])
+
+        return gems
 
     def generate_proactive_tip(self, user_id: str, lat: float, lng: float) -> Optional[str]:
         """Gera uma dica personalizada e proativa baseada na localização atual e contexto."""
@@ -54,13 +68,13 @@ class ProactiveRecommendationService:
         # 4. Usar OpenAI para criar a mensagem "Concierge"
         prompt = (
             f"O usuário está em {address} ({lat}, {lng}). "
-            f"Lugares próximos detectados: {json.dumps(gems[:3])}.\n"
+            f"Sugestões de ELITE detectadas (Rating 4.5+ ou Gems): {json.dumps(gems[:3])}.\n"
             f"Contexto: {'Viajando com crianças' if has_kids else 'Viajante solo/casal'}.\n"
             "Sua missão: Escreva uma dica de concierge PROATIVA, CURTA e ENCANTADORA.\n"
-            "- Sugira um dos lugares próximos como imperdível.\n"
-            "- Se houver crianças, priorize atrações como parques ou museus interativos.\n"
-            "- Mencione que você está ali para ajudar se ele quiser saber mais ou ver um desconto.\n"
-            "- Seja muito cordial. Ex: 'Vi que você está perto do Europark...'"
+            "- Foque na 'Excelente Reputação' dos lugares e no 'Melhor Custo-Benefício' da região.\n"
+            "- Se houver lugares com 'is_elite_food', destaque como uma experiência gastronômica imperdível.\n"
+            "- Se estiver em uma cidade pequena ou interior (ex: Baviera), use um tom de 'descoberta de jóia escondida'.\n"
+            "- Seja muito cordial e proativo. Ex: 'Vi que você está perto de um dos melhores restaurantes da região...'"
         )
 
         try:
