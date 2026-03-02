@@ -316,3 +316,35 @@ class UserService:
         user = self.get_user(user_id)
         return user.get("phase") if user else None
 
+    def set_pending_substitution(self, user_id: str, doc_data: Dict[str, Any]):
+        """Armazena temporariamente um documento que gerou conflito para confirmação."""
+        uid = self.normalize_phone(user_id)
+        if uid not in self.users: return
+        self.users[uid]["pending_substitution"] = doc_data
+        self.users[uid]["pending_at"] = datetime.now().isoformat()
+        self._save_users()
+
+    def get_pending_substitution(self, user_id: str) -> Optional[Dict]:
+        """Recupera o documento pendente se tiver menos de 30 minutos."""
+        uid = self.normalize_phone(user_id)
+        user = self.get_user(uid)
+        if not user or "pending_substitution" not in user:
+            return None
+        
+        pending_at = user.get("pending_at")
+        if not pending_at: return None
+        
+        dt_pending = datetime.fromisoformat(pending_at)
+        if (datetime.now() - dt_pending).total_seconds() > 1800: # 30 min expiration
+            return None
+            
+        return user["pending_substitution"]
+
+    def clear_pending_substitution(self, user_id: str):
+        """Limpa o estado de substituição pendente."""
+        uid = self.normalize_phone(user_id)
+        if uid in self.users:
+            self.users[uid].pop("pending_substitution", None)
+            self.users[uid].pop("pending_at", None)
+            self._save_users()
+

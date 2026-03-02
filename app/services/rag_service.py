@@ -54,10 +54,9 @@ class RAGService:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar dados do RAG: {e}")
 
-    def delete_documents_by_type(self, thread_id: str, document_type: str, trip_id: str = None, filename: str = None) -> int:
+    def delete_documents_by_type(self, thread_id: str, document_type: str, trip_id: str = None, filename: str = None, traveler_name: str = None) -> int:
         """
-        Remove documentos do mesmo tipo (e opcionalmente do mesmo nome) para evitar duplicatas.
-        Se filename for fornecido, a exclusão é mais cirúrgica (apenas substitui o arquivo exato).
+        Remove documentos do mesmo tipo (e opcionalmente do mesmo nome/viajante) para evitar duplicatas.
         """
         try:
             self._load_data()
@@ -70,8 +69,9 @@ class RAGService:
                 same_type = m.get("document_type", "").lower() == document_type.lower()
                 same_trip = (trip_id and m.get("trip_id") == trip_id) or (not trip_id)
                 same_file = (filename and m.get("filename") == filename) or (not filename)
+                same_traveler = (traveler_name and m.get("primary_traveler_name") == traveler_name) or (not traveler_name)
                 
-                if same_user and same_type and same_trip and same_file:
+                if same_user and same_type and same_trip and (same_file or same_traveler):
                     indices_to_remove.append(i)
             
             if not indices_to_remove:
@@ -201,22 +201,34 @@ class RAGService:
             logger.error(f"❌ Erro na consulta ao RAG: {e}")
             return f"Erro ao acessar documentos: {str(e)}"
 
-    def list_user_documents(self, thread_id: str) -> List[str]:
+    def list_user_documents(self, thread_id: str, document_type: str = None) -> List[str]:
         """Lista nomes de arquivos enviados para a viagem atual do usuário ou para o próprio usuário"""
         from app.services.user_service import UserService
         user_service = UserService()
         thread_id = user_service.normalize_phone(thread_id)
         active_trip = user_service.get_active_trip(thread_id)
         
-        filenames = set()
+        filenames = []
         for doc in self.documents:
-            m_trip = doc["metadata"].get("trip_id")
-            m_thread = doc["metadata"].get("thread_id")
+            m = doc["metadata"]
+            m_trip = m.get("trip_id")
+            m_thread = m.get("thread_id")
+            m_type = m.get("document_type", "").lower()
+            m_traveler = m.get("primary_traveler_name", "")
+            
             if (active_trip and m_trip == active_trip) or m_thread == thread_id:
-                if doc["metadata"].get("filename"):
-                    filenames.add(doc["metadata"]["filename"])
+                # Aplicar filtro de tipo se fornecido
+                if document_type and m_type != document_type.lower():
+                    continue
+                
+                fname = m.get("filename", "documento")
+                display_name = f"*{fname}*"
+                if m_traveler:
+                    display_name += f" - Passageiro: {m_traveler}"
+                
+                filenames.append(display_name)
                     
-        return list(filenames)
+        return sorted(list(set(filenames)))
 
     def assign_trip_to_user_documents(self, thread_id: str, trip_id: str) -> int:
         """

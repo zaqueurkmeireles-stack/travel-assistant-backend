@@ -474,6 +474,41 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         result = ingestor.ingest_from_webhook(data_payload)
         
         if result.get("success"):
+            # 🛡️ VERICAÇÃO DE CONFLITO (Mesmo viajante + Mesma categoria)
+            if result.get("status") == "conflict":
+                traveler = result.get("traveler", "Passageiro")
+                doc_type = result.get("document_type", "documento")
+                filename = result.get("filename")
+                
+                logger.warning(f"⚠️ Conflito de documento para {request.user_id}: {traveler} - {doc_type}")
+                
+                # Salvar no estado pendente para confirmação posterior
+                user_service.set_pending_substitution(request.user_id, {
+                    "filename": filename,
+                    "document_type": doc_type,
+                    "traveler": traveler,
+                    "mimetype": result.get("mimetype"),
+                    "text": result.get("text"),
+                    "metadata": {
+                        "filename": filename,
+                        "thread_id": request.user_id,
+                        "trip_id": user_service.get_active_trip(request.user_id),
+                        "mimetype": result.get("mimetype"),
+                        "document_type": doc_type,
+                        "primary_traveler_name": traveler,
+                        "segment_info": result.get("extracted_data", {}).get("segment_info")
+                    }
+                })
+                
+                n8n = N8nService()
+                conflict_msg = (
+                    f"📝 *Vi que já temos um(a) {doc_type} para {traveler} salvo(a).*\n\n"
+                    f"Deseja substituir pelo novo arquivo (*{filename}*)?\n"
+                    "Responda: *sim substituir*"
+                )
+                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, conflict_msg)
+                return JSONResponse(status_code=202, content={"success": True, "message": "Conflito detectado, aguardando confirmação."})
+
             # 🛡️ VERICAÇÃO DE RELEVÂNCIA: Se o documento não parece ser de viagem, avisar o usuário
             is_travel = result.get("is_travel_content", True)
             if not is_travel:

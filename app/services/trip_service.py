@@ -99,8 +99,7 @@ class TripService:
             "venue": doc_data.get("venue"),           
             "gate": doc_data.get("gate"),
             "proactive_cooldown_minutes": 360, # Padrão: 6 horas
-            "last_proactive_tip_at": None
-        }
+            "last_proactive_tip_at": None,
             "points_of_interest": doc_data.get("points_of_interest", []), # Lista de locais (ex: Parques Estaduais)
             "alerts_sent": [], 
             "landing_alert_sent": False, 

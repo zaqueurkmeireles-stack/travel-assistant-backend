@@ -188,17 +188,73 @@ def register_expense(expense_text: str) -> str:
 from langchain_core.runnables import RunnableConfig
 
 @tool
-def list_travel_documents(config: RunnableConfig) -> str:
+def list_travel_documents(config: RunnableConfig, category: str = None) -> str:
     """
-    Lista todos os documentos de viagem salvos (passagens, hotéis, etc) para a viagem atual.
-    Use quando o usuário perguntar 'quais documentos tenho salvos?' ou 'o que você já tem?'.
+    Lista os documentos de viagem salvos. 
+    Opcionalmente filtre por categoria (ex: 'passagem', 'hotel', 'seguro', 'parque', 'carro', 'roteiro').
+    Use quando o usuário perguntar 'quais passagens tenho?' ou 'liste meus ingressos'.
     """
     thread_id = config.get("configurable", {}).get("thread_id", "default")
-    logger.info(f"📂 Tool: Listando documentos (Thread: {thread_id})")
-    docs = get_rag_svc().list_user_documents(thread_id)
+    logger.info(f"📂 Tool: Listando documentos (Thread: {thread_id}, Filtro: {category})")
+    
+    # Mapeamento amigável
+    cat_map = {
+        "passagens": "passagem",
+        "bilhetes": "passagem",
+        "voos": "passagem",
+        "hoteis": "hotel",
+        "hospedagem": "hotel",
+        "ingressos": "parque",
+        "tickets": "parque",
+        "shoppings": "shopping"
+    }
+    document_type = cat_map.get(category.lower()) if category else category
+    
+    docs = get_rag_svc().list_user_documents(thread_id, document_type=document_type)
     if not docs:
-        return "Nenhum documento encontrado para a sua viagem atual."
+        return f"Nenhum documento encontrado para a categoria '{category or 'geral'}'. "
     return "Documentos salvos:\n- " + "\n- ".join(docs)
+
+@tool
+def confirm_document_replacement(config: RunnableConfig) -> str:
+    """
+    Confirma a substituição de um documento que estava em conflito.
+    Chame quando o usuário responder 'sim', 'pode substituir' ou 'confirmo'.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    user_svc = UserService()
+    
+    pending = user_svc.get_pending_substitution(thread_id)
+    if not pending:
+        return "Não encontrei nenhuma substituição pendente."
+    
+    from app.services.rag_service import RAGService
+    rag = RAGService()
+    
+    # 1. Remover o antigo (mesmo tipo e viajante)
+    traveler = pending.get("traveler")
+    doc_type = pending.get("document_type")
+    trip_id = pending.get("metadata", {}).get("trip_id")
+    
+    rag.delete_documents_by_type(thread_id, doc_type, trip_id=trip_id, traveler_name=traveler)
+    
+    # 2. Indexar o novo
+    text = pending.get("text")
+    metadata = pending.get("metadata")
+    
+    # Chunking manual se for muito grande
+    chunk_size = 4000
+    overlap = 200
+    if len(text) > chunk_size:
+        for i in range(0, len(text), chunk_size - overlap):
+            chunk = text[i:i + chunk_size]
+            rag.add_document(chunk, metadata)
+    else:
+        rag.add_document(text, metadata)
+    
+    user_svc.clear_pending_substitution(thread_id)
+    return f"✅ Documento '{pending['filename']}' substituído com sucesso para o passageiro {traveler}!"
 
 @tool
 def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
@@ -455,5 +511,7 @@ ALL_TOOLS = [
     generate_social_post,
     get_park_live_status,
     get_event_venue_details,
-    search_government_notices
+    search_government_notices,
+    configure_proactive_frequency,
+    confirm_document_replacement
 ]

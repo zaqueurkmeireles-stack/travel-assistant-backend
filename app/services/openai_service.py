@@ -78,6 +78,8 @@ class OpenAIService:
                     "- 'start_date': Data de início/partida no formato YYYY-MM-DD.\n"
                     "- 'end_date': Data de término/retorno no formato YYYY-MM-DD.\n"
                     "- 'travelers': Lista de nomes de viajantes.\n"
+                    "- 'primary_traveler_name': O nome principal do passageiro/titular do documento (Ex: 'Bernardo'). Importante para distinguir bilhetes individuais.\n"
+                    "- 'segment_info': Informação do trecho (Ex: 'Ida', 'Volta', 'Conexão', 'Internacional').\n"
                     "- 'confirmation_code': Código de reserva ou localizador.\n"
                     "- 'flight_number': Número do voo (ex: LA3211, TP186).\n"
                     "- 'terminal': Terminal de embarque/desembarque (se disponível).\n"

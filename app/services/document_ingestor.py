@@ -127,20 +127,49 @@ class DocumentIngestor:
                 
             active_trip = user_service.get_active_trip(sender_number)
             
-            # 5. Remover versão anterior do MESMO ARQUIVO se existir (Update)
+            # 5. [SMART DEDUPLICATOR] Detectar conflitos de passageiro/tipo
             doc_type = parse_result.get("document_type", "geral")
+            traveler = parse_result.get("primary_traveler_name")
+            
+            if not dry_run and traveler:
+                # Buscar se já existe documento deste tipo para este viajante na mesma trip
+                existing_docs = self.rag_svc.list_user_documents(sender_number, document_type=doc_type)
+                # O list_user_documents retorna strings formatadas, vamos precisar de uma busca mais bruta ou ajustar o RAG
+                # Por simplicidade, vamos verificar se o nome do passageiro aparece na lista de documentos salvos desse tipo
+                has_conflict = False
+                for d_info in existing_docs:
+                    if traveler.lower() in d_info.lower():
+                        has_conflict = True
+                        break
+                
+                if has_conflict:
+                    logger.info(f"⚠️ Conflito detectado: Documento de {doc_type} para {traveler} já existe.")
+                    return {
+                        "success": True,
+                        "status": "conflict",
+                        "document_type": doc_type,
+                        "traveler": traveler,
+                        "filename": filename,
+                        "extracted_data": parse_result, # Guardar para uso posterior
+                        "mimetype": mimetype,
+                        "text": extracted_text
+                    }
+            
+            # 6. Remover versão anterior do MESMO ARQUIVO se existir (Update simples por nome)
             if not dry_run:
                 removed = self.rag_svc.delete_documents_by_type(sender_number, doc_type, active_trip, filename)
                 if removed:
                     logger.info(f"🔄 Arquivo '{filename}' anterior substituído por nova versão.")
             
-            # 6. Indexar no RAG com o Trip ID (em Chunks de ~4000 chars para melhor retrieval)
+            # 7. Indexar no RAG com o Trip ID e Metadados estendidos
             metadata = {
                 "filename": filename,
                 "thread_id": sender_number,
                 "trip_id": active_trip,
                 "mimetype": mimetype,
-                "document_type": doc_type
+                "document_type": doc_type,
+                "primary_traveler_name": traveler,
+                "segment_info": parse_result.get("segment_info")
             }
             
             if not dry_run:
@@ -160,7 +189,7 @@ class DocumentIngestor:
                 for chunk_content in chunks:
                     self.rag_svc.add_document(chunk_content, metadata)
             
-            # 7. Detectar se outro usuário tem viagem similar (mesma dest + data ±3 dias)
+            # 8. Detectar se outro usuário tem viagem similar (mesma dest + data ±3 dias)
             trip_match = None
             if trip:
                 similar = self.trip_svc.find_similar_trips(
