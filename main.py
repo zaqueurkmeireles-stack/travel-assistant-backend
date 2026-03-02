@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 import uvicorn
 import os
+import signal
+import sys
 
 from app.config import settings, setup_directories
 from app.api.routes import router as api_router
@@ -32,6 +34,14 @@ async def lifespan(app: FastAPI):
     
     logger.info(f"🌍 [ENVIRONMENT] Modo: {settings.ENVIRONMENT} | Port: {settings.PORT}")
     
+    # Adicionar handler de sinal para diagnosticar desligamentos
+    def signal_handler(sig, frame):
+        sig_name = signal.Signals(sig).name
+        logger.warning(f"⚠️ [SIGNAL] Recebido sinal {sig_name} ({sig}). Iniciando desligamento gracioso...")
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     yield
     
     logger.info("🛑 [SHUTDOWN] Encerrando TravelCompanion AI...")
