@@ -21,7 +21,7 @@ class EvolutionService:
         if not self.api_key:
             logger.warning("⚠️ EVOLUTION_API_KEY não configurada. Endpoints REST falharão.")
             
-    def get_base64_media(self, message_id: str) -> str:
+    def get_base64_media(self, message_id: str, remote_jid: str = None) -> str:
         """
         Busca o conteúdo Base64 de uma mensagem de mídia específica via API REST.
         Útil quando o webhook não envia o base64 (comum em encaminhamentos).
@@ -44,6 +44,8 @@ class EvolutionService:
                     "id": message_id
                 }
             }
+            if remote_jid:
+                payload["messageKey"]["remoteJid"] = remote_jid
             
             logger.info(f"📥 Solicitando Base64 para mensagem {message_id} via REST API...")
             response = requests.post(url, json=payload, headers=headers, timeout=15)
@@ -63,9 +65,9 @@ class EvolutionService:
             logger.error(f"❌ Erro crítico ao chamar Evolution API: {e}")
             return ""
 
-    def get_message_content(self, message_id: str) -> bytes:
+    def get_message_content(self, message_id: str, remote_jid: str = None) -> bytes:
         """Retorna o conteúdo binário puro (decodificado) da mídia"""
-        b64_str = self.get_base64_media(message_id)
+        b64_str = self.get_base64_media(message_id, remote_jid)
         if not b64_str:
             return None
             

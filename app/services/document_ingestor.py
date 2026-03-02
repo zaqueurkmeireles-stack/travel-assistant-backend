@@ -64,7 +64,8 @@ class DocumentIngestor:
                 # 🚀 FALLBACK: Se não veio Base64 (comum em encaminhamentos), buscar via API REST
                 from app.services.evolution_service import EvolutionService
                 evo_svc = EvolutionService()
-                file_content = evo_svc.get_message_content(message_id)
+                remote_jid = data.get("user_id")
+                file_content = evo_svc.get_message_content(message_id, remote_jid)
                 
                 if file_content:
                     logger.info(f"✅ Arquivo recuperado via API REST (MessageID: {message_id})")
