@@ -31,18 +31,26 @@ class ChatResponse(BaseModel):
     response: str
     user_id: str
 
-class MediaRequest(BaseModel):
-    user_id: str
-    base64: Optional[str] = ""
-    filename: Optional[str] = "arquivo"
-    mimetype: Optional[str] = "application/octet-stream"
-    push_name: Optional[str] = "Desconhecido"
-
 class LocationRequest(BaseModel):
     user_id: str
     latitude: float
     longitude: float
     address: Optional[str] = None
+
+class MediaRequest(BaseModel):
+    user_id: str
+    message_id: Optional[str] = None # ID único da mensagem para evitar duplicatas
+    base64: Optional[str] = ""
+    filename: Optional[str] = "arquivo"
+    mimetype: Optional[str] = "application/octet-stream"
+    push_name: Optional[str] = "Desconhecido"
+
+# ============================================================
+# CACHE DE DEDUPLICAÇÃO (Evita processar a mesma mensagem 2x)
+# ============================================================
+from cachetools import TTLCache
+# Mantém 1000 IDs de mensagens por 60 segundos
+_dedup_cache = TTLCache(maxsize=1000, ttl=60)
 
 # ============================================================
 # GERENCIAMENTO DE DEPENDÊNCIAS (Singletons para Performance)
@@ -399,9 +407,15 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
     Após indexar o documento no RAG, envia confirmação ao usuário via WhatsApp
     e realiza gap analysis para verificar documentos faltantes.
     """
-    logger.info(f"📥 Recebendo mídia ({request.filename}) de {request.user_id}")
-    logger.debug(f"🔍 [DEBUG MEDIA BODY] {request.dict()}")
+    logger.info(f"📥 Recebendo mídia ({request.filename}) de {request.user_id} (ID: {request.message_id})")
     
+    # --- [DEDUPLICAÇÃO] ---
+    if request.message_id:
+        if request.message_id in _dedup_cache:
+            logger.warning(f"♻️ Request duplicado detectado e ignorado: {request.message_id}")
+            return JSONResponse(status_code=202, content={"success": True, "message": "Duplicata ignorada."})
+        _dedup_cache[request.message_id] = True
+
     try:
         from app.services.user_service import UserService
         user_service = UserService()
@@ -419,14 +433,15 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             # [SMART MATCH] Tentar extrair dados do documento mesmo sem autorização (Dry Run)
             ingestor = DocumentIngestor()
             data_payload = {
-                "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net"},
+                "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net", "id": request.message_id},
                 "message": {
                     "documentMessage": {
                         "fileName": request.filename,
                         "mimetype": request.mimetype
                     }
                 },
-                "base64": request.base64
+                "base64": request.base64,
+                "message_id": request.message_id
             }
             
             # Dry run apenas extrai e busca matches, não salva no RAG nem no Drive
@@ -461,14 +476,15 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         ingestor = DocumentIngestor()
         # Adaptar o payload para o formato esperado pelo ingestor
         data_payload = {
-            "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net"},
+            "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net", "id": request.message_id},
             "message": {
                 "documentMessage": {
                     "fileName": request.filename,
                     "mimetype": request.mimetype
                 }
             },
-            "base64": request.base64
+            "base64": request.base64,
+            "message_id": request.message_id
         }
         
         result = ingestor.ingest_from_webhook(data_payload)
@@ -582,7 +598,9 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             n8n = N8nService()
             error_msg = f"❌ *Falha ao processar:* {request.filename}\nErro: {result.get('error', 'Desconhecido')}"
             background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, error_msg)
-            return JSONResponse(status_code=422, content=result)
+            # Retornamos 202 (Accepted) mesmo em erro lógico, pois já notificamos o usuário via WhatsApp.
+            # Isso evita que o Evolution/n8n tente reenviar a mídia várias vezes (retries).
+            return JSONResponse(status_code=202, content=result)
             
     except Exception as e:
         logger.error(f"❌ Erro no webhook de mídia: {e}")

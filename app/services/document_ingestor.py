@@ -54,13 +54,28 @@ class DocumentIngestor:
             
             # 2. Obter o conteúdo do arquivo
             base64_data = data.get("base64")
+            message_id = data.get("message_id") or data.get("key", {}).get("id")
             
             if base64_data:
                 import base64
                 file_content = base64.b64decode(base64_data)
                 logger.info(f"📥 Arquivo recebido via Base64: {filename}")
+            elif message_id:
+                # 🚀 FALLBACK: Se não veio Base64 (comum em encaminhamentos), buscar via API REST
+                from app.services.evolution_service import EvolutionService
+                evo_svc = EvolutionService()
+                file_content = evo_svc.get_message_content(message_id)
+                
+                if file_content:
+                    logger.info(f"✅ Arquivo recuperado via API REST (MessageID: {message_id})")
+                else:
+                    logger.warning(f"⚠️ Falha ao recuperar arquivo via API REST para {message_id}")
+                    return {
+                        "success": False, 
+                        "error": "Não consegui ler o conteúdo deste arquivo encaminhado. Por favor, tente enviar o arquivo diretamente (sem encaminhar) ou mande um novo print."
+                    }
             else:
-                logger.warning("Conteúdo binário não encontrado no payload (base64 vazio).")
+                logger.warning("Conteúdo binário não encontrado no payload e message_id ausente.")
                 return {"success": False, "error": "Conteúdo do arquivo não encontrado no webhook."}
 
             # [NOVO] Se for imagem ou vídeo (não documento PDF/Docx), salvar no Google Drive
