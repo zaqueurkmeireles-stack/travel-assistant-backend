@@ -74,17 +74,10 @@ def get_parser_factory() -> ParserFactory:
         _parser_factory = ParserFactory()
     return _parser_factory
 
+
 # ============================================================
 # ENDPOINTS
 # ============================================================
-
-@router.get("/health")
-async def health_check():
-    """Health check - Verifica se a API está funcionando"""
-    return {
-        "status": "healthy",
-        "service": "TravelCompanion AI API"
-    }
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(

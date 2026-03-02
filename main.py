@@ -57,9 +57,10 @@ app.add_middleware(
 # Health Check Unificado (Padrão para Easypanel / Portainer)
 @app.get("/", tags=["System"])
 @app.get("/health", tags=["System"])
+@app.get("/api/health", tags=["System"]) # Adicionado para compatibilidade total
 async def health_check():
     """Endpoint de vitalidade do serviço"""
-    logger.debug("🌐 Health Check recebido")
+    logger.info("📡 [HEALTHCHECK] Requisição recebida com sucesso.")
     return {
         "status": "online",
         "service": "Seven Assistant Travel",
