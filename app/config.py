@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     N8N_WEBHOOK_URL_OUTPUT: str = ""
     ADMIN_WHATSAPP_NUMBER: str = ""
     BOT_WHATSAPP_NUMBER: str = ""
+
+    # ============================================================
+    # EVOLUTION API (REST)
+    # ============================================================
+    EVOLUTION_API_URL: Optional[str] = None
+    EVOLUTION_API_KEY: Optional[str] = None
+    EVOLUTION_INSTANCE_NAME: str = "Seven_Assistant"
     
     # ============================================================
     # ARMAZENAMENTO
