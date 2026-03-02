@@ -21,7 +21,7 @@ class ProactiveRecommendationService:
         logger.info("✅ ProactiveRecommendationService inicializado")
 
     def get_nearby_gems(self, lat: float, lng: float, user_id: str) -> List[Dict]:
-        """Busca lugares de alta qualidade (restaurantes 4.5+ e atrações 4.0+) próximos ao usuário."""
+        """Busca lugares de alta qualidade (restaurantes 4.5+, atrações 4.0+ e Shoppings) próximos ao usuário."""
         # 1. Buscar atrações turísticas
         attractions = self.maps_svc.find_nearby_places(lat, lng, place_type="tourist_attraction", radius=2000)
         gems = [g for g in attractions if g.get("rating", 0) >= 4.0]
@@ -30,14 +30,26 @@ class ProactiveRecommendationService:
         food_places = self.maps_svc.find_nearby_places(lat, lng, place_type="restaurant", radius=1000)
         food_places += self.maps_svc.find_nearby_places(lat, lng, place_type="cafe", radius=1000)
         
+        # 3. Buscar Compras de Alto Valor (Outlets, Malls, Department Stores)
+        shopping = self.maps_svc.find_nearby_places(lat, lng, place_type="shopping_mall", radius=3000)
+        shopping += self.maps_svc.find_nearby_places(lat, lng, place_type="department_store", radius=2000)
+        
         # Filtrar por rating alto e evitar duplicatas
         seen_names = set(g["name"] for g in gems)
+        
+        # Add Food
         for f in food_places:
             if f["name"] not in seen_names and f.get("rating", 0) >= 4.5:
-                # Adicionar tag de "Elite" para o prompt da IA
                 f["is_elite_food"] = True
                 gems.append(f)
                 seen_names.add(f["name"])
+        
+        # Add Shopping
+        for s in shopping:
+            if s["name"] not in seen_names and (s.get("rating", 0) >= 4.0 or "outlet" in s["name"].lower()):
+                s["is_shopping"] = True
+                gems.append(s)
+                seen_names.add(s["name"])
 
         return gems
 
@@ -65,16 +77,38 @@ class ProactiveRecommendationService:
         if not gems:
             return None
 
-        # 4. Usar OpenAI para criar a mensagem "Concierge"
+        # 4. Filtrar duplicatas contra o RAG (não sugerir o que já está no roteiro)
+        from app.services.rag_service import RAGService
+        rag = RAGService()
+        filtered_gems = []
+        
+        for gem in gems[:5]: # Verificar os top 5
+            # Busca rápida no RAG pelo nome do lugar
+            query = f"O lugar '{gem['name']}' já está planejado ou no roteiro da viagem?"
+            rag_result = rag.query(query, user_id, k=2)
+            
+            # Se o RAG indicar que já está planejado, ignorar
+            if any(word in rag_result.lower() for word in ["sim", "planejado", "agendado", "no roteiro", "reserva"]):
+                logger.info(f"⏭️ Pulando '{gem['name']}' pois já consta no roteiro (RAG Match).")
+                continue
+            filtered_gems.append(gem)
+
+        if not filtered_gems:
+            logger.info("ℹ️ Todas as sugestões próximas já estão no roteiro. Nada a sugerir no momento.")
+            return None
+
+        # 5. Usar OpenAI para criar a mensagem "Concierge"
         prompt = (
             f"O usuário está em {address} ({lat}, {lng}). "
-            f"Sugestões de ELITE detectadas (Rating 4.5+ ou Gems): {json.dumps(gems[:3])}.\n"
+            f"Sugestões INÉDITAS (NÃO estão no roteiro) detectadas: {json.dumps(filtered_gems[:3])}.\n"
             f"Contexto: {'Viajando com crianças' if has_kids else 'Viajante solo/casal'}.\n"
             "Sua missão: Escreva uma dica de concierge PROATIVA, CURTA e ENCANTADORA.\n"
-            "- Foque na 'Excelente Reputação' dos lugares e no 'Melhor Custo-Benefício' da região.\n"
-            "- Se houver lugares com 'is_elite_food', destaque como uma experiência gastronômica imperdível.\n"
-            "- Se estiver em uma cidade pequena ou interior (ex: Baviera), use um tom de 'descoberta de jóia escondida'.\n"
-            "- Seja muito cordial e proativo. Ex: 'Vi que você está perto de um dos melhores restaurantes da região...'"
+            "- Foque na 'Excelente Reputação' dos lugares e no 'Melhor Custo-Benefício' (Especialmente para Compras/Shopping).\n"
+            "- Se houver 'is_shopping', destaque ofertas ou o valor da experiência de compra.\n"
+            "- Se houver 'is_elite_food', destaque como uma experiência gastronômica imperdível.\n"
+            "- Mencione sutilmente que esta é uma nova descoberta que não estava planejada originalmente.\n"
+            "- Se estiver em uma cidade pequena ou interior (ex: Baviera), use um tom de 'joia escondida'.\n"
+            "- Seja muito cordial e proativo."
         )
 
         try:
