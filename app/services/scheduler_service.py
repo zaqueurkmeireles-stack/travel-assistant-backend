@@ -265,7 +265,8 @@ class SchedulerService:
                 start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
                 end_dt = datetime.strptime(trip.get("end_date", trip["start_date"]), "%Y-%m-%d").date()
                 
-                if start_dt <= today_date <= end_dt:
+                # [OTIMIZAÇÃO] Só monitorar o voo no DIA da IDA ou no DIA da VOLTA, economizando milhares de calls de API
+                if today_date == start_dt or today_date == end_dt:
                     flight_num = trip.get("flight_number")
                     if flight_num and not trip.get("landing_alert_sent", False):
                         logger.info(f"🔍 Checando status do voo {flight_num} para {trip['user_id']}...")
@@ -337,6 +338,17 @@ class SchedulerService:
             user_id = trip["user_id"]
             park_name = trip.get("current_park_name", "Parque")
             
+            # [OTIMIZAÇÃO] Verificar se a viagem do parque aida está vigente (o usuário pode ter esquecido o current_park_id salvo)
+            start_date_str = trip.get("start_date")
+            end_date_str = trip.get("end_date", start_date_str)
+            try:
+                start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                end_dt = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                if not (start_dt <= datetime.now().date() <= end_dt):
+                    continue
+            except Exception:
+                continue
+                
             try:
                 from app.services.park_service import ParkService
                 park_svc = ParkService()
@@ -436,19 +448,19 @@ class SchedulerService:
                 
                 logger.info(f"🔎 Buscando avisos oficiais para {dest} ({user_id})...")
                 
-                # Prompt especializado para focar em fontes governamentais
+                # Prompt especializado para focar em fontes LOCAIS e governamentais
                 prompt = (
-                    f"Você é um especialista em conformidade de viagens. Sua tarefa é buscar o portal oficial do governo de {dest} "
-                    f"ou do consulado/embaixada relevante para encontrar AVISOS IMPORTANTES PARA VIAJANTES hoje ({today.strftime('%Y-%m-%d')}).\n\n"
-                    "FOCO EXCLUSIVO EM:\n"
-                    "1. Mudanças em regras de entrada, vistos ou passaportes.\n"
-                    "2. Alertas de saúde pública ou exigência de vacinas de última hora.\n"
-                    "3. Greves em transporte público, aeroportos ou serviços essenciais anunciadas em sites oficiais.\n"
-                    "4. Avisos de segurança emitidos por órgãos governamentais.\n\n"
+                    f"Você é um especialista em turismo estratégico. Sua tarefa é buscar DE FORMA ATUALIZADA (hoje: {today.strftime('%Y-%m-%d')}) "
+                    f"no portal oficial da **Prefeitura de {dest}** ou na **Secretaria de Turismo Local** por AVISOS IMPORTANTES.\n\n"
+                    "FOCO EXCLUSIVO EM NOTÍCIAS RELEVANTES PARA TURISTAS HOJE:\n"
+                    "1. Fechamento de ruas ou grandes avenidas por conta de Festivais, Desfiles ou Obras da Prefeitura.\n"
+                    "2. Interdição de praias, parques estaduais ou vias de acesso a monumentos públicos.\n"
+                    "3. Alertas meteorológicos sérios emitidos pela Defesa Civil da cidade.\n"
+                    "4. Novas restrições ou regras locais urgentes aplicadas a turistas.\n\n"
                     "REGRAS CRÍTICAS:\n"
-                    "- Só relate se encontrar informação em SITE OFICIAL (ex: .gov, .edu, sites de consulados).\n"
-                    "- Se não houver avisos novos ou críticos, responda apenas 'SEM_AVISOS_NOVOS'.\n"
-                    "- Seja direto e cite a fonte se possível."
+                    "- Priorize fontes que terminem em .gov, sites de Prefeituras (City Hall) e Portais G1/Locais.\n"
+                    "- Se não houver avisos novos locais ou críticos, responda estritamente: 'SEM_AVISOS_NOVOS'.\n"
+                    "- Seja direto, útil, e cite a fonte se possível."
                 )
                 
                 from app.agents.orchestrator import TravelAgent
