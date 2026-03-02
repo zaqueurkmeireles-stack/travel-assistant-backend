@@ -177,6 +177,41 @@ async def chat_endpoint(
         
         # --- NOVO: Lógica de Confirmação de Vinculação Automática (SIM/NÃO) ---
         pending_link = user_service.get_pending_trip_link(request.user_id)
+        
+        # --- Lógica de INCLUSÃO FORÇADA DE ARQUIVO IRRELEVANTE ---
+        pending_irr = user_service.get_pending_irrelevancy(request.user_id)
+        if pending_irr and message_clean.lower() in ["sim", "s", "yes", "sim incluir", "incluir"]:
+            logger.info(f"✅ Usuário forçou a inclusão do documento irrelevante: {pending_irr.get('filename')}")
+            user_service.clear_pending_irrelevancy(request.user_id)
+            
+            from app.services.rag_service import RAGService
+            rag_svc = RAGService()
+            
+            extracted_text = pending_irr.get("text", "")
+            metadata = pending_irr.get("metadata", {})
+            
+            # Chunking manual e indexação
+            chunk_size = 4000
+            overlap = 200
+            chunks = [extracted_text[i:i + chunk_size] for i in range(0, max(1, len(extracted_text)), chunk_size - overlap)] if len(extracted_text) > chunk_size else [extracted_text]
+            
+            for chunk_content in chunks:
+                if chunk_content.strip():
+                    rag_svc.add_document(chunk_content, metadata)
+            
+            msg = f"✅ Tudo bem! Eu incluí o arquivo *{pending_irr.get('filename')}* no seu dossiê da viagem mesmo não parecendo ter relação direta. Ele já está na minha memória."
+            n8n = N8nService()
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
+            return ChatResponse(success=True, response=msg, user_id=request.user_id)
+        
+        if pending_irr and message_clean.lower() in ["não", "nao", "n", "no", "descartar"]:
+            user_service.clear_pending_irrelevancy(request.user_id)
+            msg = "Ok, descartei o arquivo. Como posso ajudar com a viagem hoje?"
+            n8n = N8nService()
+            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
+            return ChatResponse(success=True, response=msg, user_id=request.user_id)
+        # --------------------------------------------------------------------
+
         if pending_link:
             msg_upper = message_clean.upper()
             if msg_upper in ["SIM", "S", "YES", "OK", "CONFIRMAR"]:
@@ -520,10 +555,24 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
 
             # 🛡️ VERICAÇÃO DE RELEVÂNCIA: Se o documento não parece ser de viagem, avisar o usuário
             is_travel = result.get("is_travel_content", True)
-            if not is_travel:
+            if not is_travel or result.get("status") == "irrelevant":
                 logger.warning(f"⚠️ Documento irrelevante detectado para {request.user_id}: {request.filename}")
                 n8n = N8nService()
-                warning_msg = "li aqui esse documento e vi que não possui relação com a viagem , tem certeza que quer incluir na RAG? "
+                warning_msg = (
+                    f"li aqui esse documento (*{request.filename}*) e vi que não possui relação direta com a viagem, "
+                    "tem certeza que quer incluir na memória da RAG?\n\nResponda: *sim incluir*"
+                )
+                
+                # Armazenar doc para forçar inclusão depois
+                user_service.set_pending_irrelevancy(request.user_id, {
+                    "filename": result.get("filename") or request.filename,
+                    "document_type": result.get("document_type", "documento"),
+                    "traveler": result.get("traveler", "viajante"),
+                    "mimetype": result.get("mimetype"),
+                    "text": result.get("text"),
+                    "metadata": result.get("metadata", {})
+                })
+                
                 background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, warning_msg)
                 return JSONResponse(status_code=202, content={"success": True, "message": "Aviso de irrelevância enviado."})
 

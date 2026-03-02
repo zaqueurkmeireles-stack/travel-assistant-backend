@@ -348,3 +348,35 @@ class UserService:
             self.users[uid].pop("pending_at", None)
             self._save_users()
 
+    def set_pending_irrelevancy(self, user_id: str, doc_data: Dict[str, Any]):
+        """Armazena um documento considerado irrelevante aguardando o usuário forçar a inclusão."""
+        uid = self.normalize_phone(user_id)
+        if uid not in self.users: return
+        self.users[uid]["pending_irrelevancy"] = doc_data
+        self.users[uid]["pending_irr_at"] = datetime.now().isoformat()
+        self._save_users()
+
+    def get_pending_irrelevancy(self, user_id: str) -> Optional[Dict]:
+        """Recupera o documento irrelevante pendente se tiver menos de 30 minutos."""
+        uid = self.normalize_phone(user_id)
+        user = self.get_user(uid)
+        if not user or "pending_irrelevancy" not in user:
+            return None
+        
+        pending_at = user.get("pending_irr_at")
+        if not pending_at: return None
+        
+        dt_pending = datetime.fromisoformat(pending_at)
+        if (datetime.now() - dt_pending).total_seconds() > 1800:
+            return None
+            
+        return user["pending_irrelevancy"]
+
+    def clear_pending_irrelevancy(self, user_id: str):
+        """Limpa o estado de documento irrelevante pendente."""
+        uid = self.normalize_phone(user_id)
+        if uid in self.users:
+            self.users[uid].pop("pending_irrelevancy", None)
+            self.users[uid].pop("pending_irr_at", None)
+            self._save_users()
+

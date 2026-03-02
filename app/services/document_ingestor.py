@@ -147,6 +147,29 @@ class DocumentIngestor:
             doc_type = parse_result.get("document_type", "geral")
             traveler = parse_result.get("primary_traveler_name")
             segment = parse_result.get("segment_info")
+            is_travel = parse_result.get("is_travel_content", True)
+            
+            if not is_travel and not dry_run:
+                logger.warning(f"⚠️ Documento considerado irrelevante: {filename}. Suspendendo indexação.")
+                return {
+                    "success": True,
+                    "status": "irrelevant",
+                    "filename": filename,
+                    "document_type": doc_type,
+                    "traveler": traveler,
+                    "mimetype": mimetype,
+                    "text": extracted_text,
+                    "metadata": {
+                        "filename": filename,
+                        "thread_id": sender_number,
+                        "trip_id": active_trip,
+                        "mimetype": mimetype,
+                        "document_type": doc_type,
+                        "primary_traveler_name": traveler,
+                        "segment_info": segment
+                    },
+                    "is_travel_content": False
+                }
             
             if not dry_run and traveler:
                 # Buscar se já existe documento deste tipo para este viajante
