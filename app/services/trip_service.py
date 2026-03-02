@@ -111,6 +111,37 @@ class TripService:
         logger.info(f"✨ Nova viagem agendada: {destination} em {start_date}")
         return new_trip
 
+    def update_proactive_config(self, user_id: str, level: str) -> bool:
+        """Atualiza a frequência de dicas proativas para a viagem ativa do usuário"""
+        # Mapeamento de níveis para minutos
+        freq_map = {
+            "low": 360,    # 6 horas (padrão)
+            "medium": 60,  # 1 hora
+            "high": 30     # 30 minutos
+        }
+        minutes = freq_map.get(level.lower(), 360)
+        
+        from app.services.user_service import UserService
+        user_svc = UserService()
+        active_trip_id = user_svc.get_active_trip(user_id)
+        
+        if not active_trip_id:
+            logger.warning(f"⚠️ Tentativa de mudar frequência sem viagem ativa para {user_id}")
+            return False
+            
+        updated = False
+        for trip in self.trips:
+            if trip["id"] == active_trip_id:
+                trip["proactive_cooldown_minutes"] = minutes
+                updated = True
+                break
+        
+        if updated:
+            self._save_trips()
+            logger.info(f"⚙️ Frequência proativa de {user_id} alterada para {level} ({minutes}min)")
+            return True
+        return False
+
     def register_data_plan(self, user_id: str, total_gb: float, duration_days: int):
         """Registra um plano de dados para o usuário na viagem atual ou futura"""
         # Simplificação: assume o plano para a viagem mais próxima

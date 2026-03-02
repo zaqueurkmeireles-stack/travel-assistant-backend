@@ -486,6 +486,23 @@ def manage_trip_sharing(action: str, partner_whatsapp: str, confirmation_code: s
     
     return f"Solicitação enviada. Aguardando {partner_whatsapp} aceitar."
 
+@tool
+def configure_proactive_frequency(level: str, config: RunnableConfig) -> str:
+    """
+    Configura a frequência de dicas proativas (lugares, compras, avisos).
+    level: 'low' (a cada 6h), 'medium' (a cada 1h), 'high' (a cada 30min).
+    Use quando o usuário disser 'quero mais dicas', 'estou explorando' ou similar.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.trip_service import TripService
+    trip_svc = TripService()
+    
+    success = trip_svc.update_proactive_config(user_id, level)
+    if success:
+        freq_desc = {"low": "6 horas", "medium": "1 hora", "high": "30 minutos"}.get(level.lower(), "6 horas")
+        return f"✅ Entendido! No 'Modo Ativo', enviarei dicas de gastronomia e atrações a cada {freq_desc}."
+    return "Não consegui alterar a frequência. Verifique se você tem uma viagem ativa registrada."
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
