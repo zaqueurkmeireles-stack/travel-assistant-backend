@@ -101,8 +101,9 @@ async def chat_endpoint(
         from app.services.user_service import UserService
         user_service = UserService()
         
-        # 🛡️ NORMALIZAÇÃO IMEDIATA (evita erros de prefixo 9 extra)
+        # 🛡️ NORMALIZAÇÃO IMEDIATA
         logger.info(f"📡 [INCOMING] Recebido de n8n: {request.user_id}")
+        logger.debug(f"🔍 [DEBUG BODY] {request.dict()}")
         original_user_id = request.user_id
         request.user_id = user_service.normalize_phone(request.user_id)
         
@@ -387,6 +388,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
     e realiza gap analysis para verificar documentos faltantes.
     """
     logger.info(f"📥 Recebendo mídia ({request.filename}) de {request.user_id}")
+    logger.debug(f"🔍 [DEBUG MEDIA BODY] {request.dict()}")
     
     try:
         from app.services.user_service import UserService
