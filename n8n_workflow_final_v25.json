@@ -263,7 +263,7 @@
                     "timeout": 30000
                 },
                 "headerParametersJson": "{ \"Content-Type\": \"application/json\" }",
-                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || $json.body.data?.remoteJid || $json.body.remoteJid || $json.body.instance?.ownerJid || $json.body.sender || 'desconhecido'), \"push_name\": $json.body.data?.pushName || $json.body.pushName || '', \"latitude\": $json.body.data?.message?.locationMessage?.degreesLatitude || $json.body.message?.locationMessage?.degreesLatitude || 0, \"longitude\": $json.body.data?.message?.locationMessage?.degreesLongitude || $json.body.message?.locationMessage?.degreesLongitude || 0 }) }}",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || $json.body.data?.remoteJid || $json.body.remoteJid || $json.body.instance?.ownerJid || $json.body.sender || 'desconhecido'), \"push_name\": $json.body.data?.pushName || $json.body.pushName || '', \"message_id\": $json.body.data?.key?.id || $json.body.key?.id || '', \"latitude\": $json.body.data?.message?.locationMessage?.degreesLatitude || $json.body.message?.locationMessage?.degreesLatitude || 0, \"longitude\": $json.body.data?.message?.locationMessage?.degreesLongitude || $json.body.message?.locationMessage?.degreesLongitude || 0 }) }}",
                 "continueOnFail": true
             },
             "id": "node-http-location",
@@ -376,7 +376,7 @@
                     "timeout": 60000
                 },
                 "headerParametersJson": "{ \"Content-Type\": \"application/json\" }",
-                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || $json.body.data?.remoteJid || $json.body.remoteJid || $json.body.instance?.ownerJid || $json.body.sender || 'desconhecido'), \"push_name\": $json.body.data?.pushName || $json.body.pushName || '', \"message\": $json.body.data?.message?.conversation || $json.body.data?.message?.extendedTextMessage?.text || $json.body.message?.conversation || $json.body.message?.extendedTextMessage?.text || '' }) }}",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": ($json.body.data?.key?.remoteJid || $json.body.key?.remoteJid || $json.body.data?.remoteJid || $json.body.remoteJid || $json.body.instance?.ownerJid || $json.body.sender || 'desconhecido'), \"push_name\": $json.body.data?.pushName || $json.body.pushName || '', \"message_id\": $json.body.data?.key?.id || $json.body.key?.id || '', \"message\": $json.body.data?.message?.conversation || $json.body.data?.message?.extendedTextMessage?.text || $json.body.message?.conversation || $json.body.message?.extendedTextMessage?.text || '' }) }}",
                 "continueOnFail": true
             },
             "id": "node-http-texto",

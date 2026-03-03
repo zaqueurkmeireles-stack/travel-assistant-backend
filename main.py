@@ -15,17 +15,6 @@ _agent = None
 _n8n_service = None
 _ingestor = None
 
-# Adicionar handler de sinal global para diagnosticar desligamentos
-def global_signal_handler(sig, frame):
-    try:
-        sig_name = signal.Signals(sig).name
-        logger.warning(f"⚠️ [SIGNAL GLOBAL] Recebido sinal {sig_name} ({sig}). PID: {os.getpid()}")
-    except Exception:
-        logger.warning(f"⚠️ [SIGNAL GLOBAL] Recebido sinal {sig}. PID: {os.getpid()}")
-
-signal.signal(signal.SIGTERM, global_signal_handler)
-signal.signal(signal.SIGINT, global_signal_handler)
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação (Startup/Shutdown)"""

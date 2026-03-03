@@ -24,6 +24,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     user_id: str  # Número do WhatsApp (usado como thread_id na memória)
     message: str  # Mensagem do usuário
+    message_id: Optional[str] = None # ID único da mensagem para evitar duplicatas
     push_name: Optional[str] = "Desconhecido"
 
 class ChatResponse(BaseModel):
@@ -87,45 +88,38 @@ async def chat_endpoint(
 ):
     """
     Endpoint principal de Chat (Webhook para n8n/WhatsApp)
-    Recebe a mensagem, processa no LangGraph, devolve a resposta ao WhatsApp via N8nService
-    e retorna JSON para o n8n.
+    Recebe a mensagem, valida e responde imediatamente com sucesso.
+    O processamento real acontece em background para evitar timeouts no n8n.
     """
     if not request.user_id or request.user_id.strip() == "":
         logger.error("❌ Erro: Request recebido com user_id vazio. Verifique o mapeamento no n8n.")
-        return ChatResponse(
-            success=True,
-            response="",
-            user_id="desconhecido"
-        )
+        return ChatResponse(success=True, response="", user_id="desconhecido")
     
+    # --- [DEDUPLICAÇÃO] ---
+    if request.message_id:
+        if request.message_id in _dedup_cache:
+            logger.warning(f"♻️ Chat duplicado detectado e ignorado: {request.message_id}")
+            return ChatResponse(success=True, response="Duplicata ignorada", user_id=request.user_id)
+        _dedup_cache[request.message_id] = True
+
     try:
         from app.services.user_service import UserService
         user_service = UserService()
         
         # 🛡️ NORMALIZAÇÃO IMEDIATA
         logger.info(f"📡 [INCOMING] Recebido de n8n: {request.user_id}")
-        logger.debug(f"🔍 [DEBUG BODY] {request.dict()}")
         
-        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
+        # --- FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
         if "@g.us" in request.user_id:
             logger.info(f"👥 Grupo detectado e ignorado: {request.user_id}")
             return ChatResponse(success=True, response="", user_id=request.user_id)
 
-        original_user_id = request.user_id
         request.user_id = user_service.normalize_phone(request.user_id)
         
         if not request.user_id:
-            return ChatResponse(
-                success=True,
-                response="",
-                user_id="invalid"
-            )
+            return ChatResponse(success=True, response="", user_id="invalid")
 
-        logger.info(f"📥 [RAW] Mensagem de {request.user_id}: {request.message[:50]}...")
-            
-        logger.info(f"👤 [NORMALIZADO] {request.user_id}")
-        
-        # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias (Eventos de leitura, status, delivery receipts)
+        # 🛑 PREVENÇÃO EVOLUTION API: Ignorar mensagens vazias
         if not request.message or not request.message.strip():
             logger.info(f"🛑 [FILTRO] Mensagem vazia ou ruído ignorado de {request.user_id}")
             return ChatResponse(success=True, response="", user_id=request.user_id)
@@ -133,54 +127,58 @@ async def chat_endpoint(
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
         bot_number = user_service.normalize_phone(getattr(settings, "BOT_WHATSAPP_NUMBER", ""))
         if bot_number and request.user_id == bot_number:
-            logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Prevenção de loop infinito).")
+            logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot.")
             return ChatResponse(success=True, response="", user_id=request.user_id)
-            
-        # [DIAGNOSTICO] Logar todos os contatos em um arquivo persistente para identificar IDs
+
+        # Agenda o processamento pesado para rodar em background
+        background_tasks.add_task(process_chat_message, request, agent)
+        
+        return ChatResponse(
+            success=True,
+            response="Processando...",
+            user_id=request.user_id
+        )
+    except Exception as e:
+        logger.error(f"❌ Erro ao receber chat: {e}")
+        return ChatResponse(success=False, response=str(e), user_id=request.user_id)
+
+async def process_chat_message(request: ChatRequest, agent: TravelAgent):
+    """Lógica de processamento de chat executada em background"""
+    from datetime import datetime
+    try:
+        from app.services.user_service import UserService
+        user_service = UserService()
+        
+        message_str = request.message.strip()
+        
+        # [DIAGNOSTICO] Logar todos os contatos
         try:
             with open("data/contact_history.txt", "a", encoding="utf-8") as f:
-                f.write(f"{datetime.now().isoformat()} | ID: {request.user_id} | MSG: {request.message[:50]}...\n")
-        except:
-            pass
+                f.write(f"{datetime.now().isoformat()} | ID: {request.user_id} | MSG: {message_str[:50]}...\n")
+        except: pass
 
-        # 🛑 PREVENÇÃO DE ECO (FORK BOMB): A Evolution API pode enviar as respostas do próprio bot de volta.
-        message_str = request.message.strip()
+        # 🛑 PREVENÇÃO DE ECO (FORK BOMB)
         bot_signatures = [
-            "BEM-VINDO AO SEVEN ASSISTANT TRAVEL",
-            "Pedido de Acesso!",
-            "seven assistant",
-            "Aqui estão os detalhes da sua viagem",
-            "Aqui estão os documentos de viagem",
-            "Aqui estão os documentos salvos",
-            "Não vejo novos bilhetes de passagem",
-            "✅ Documento recebido e salvo!",
-            "📋 Checklist de documentos:",
-            "🎉 Todos os documentos essenciais já estão salvos",
-            "🔗 Viagem em Grupo Detectada!",
-            "📋 *Checklist de documentos:*",
-            "Sucesso no n8n para",
-            "Resumo da Comunidade:",
+            "BEM-VINDO AO SEVEN ASSISTANT TRAVEL", "Pedido de Acesso!", "seven assistant",
+            "Aqui estão os detalhes da sua viagem", "Aqui estão os documentos de viagem",
+            "Aqui estão os documentos salvos", "Não vejo novos bilhetes de passagem",
+            "✅ Documento recebido e salvo!", "📋 Checklist de documentos:",
+            "🎉 Todos os documentos essenciais já estão salvos", "🔗 Viagem em Grupo Detectada!",
+            "📋 *Checklist de documentos:*", "Sucesso no n8n para", "Resumo da Comunidade:",
             "Como posso ajudar com a viagem hoje?"
         ]
         if any(sig.lower() in message_str.lower() for sig in bot_signatures) and len(message_str) > 20:
             logger.info(f"🛑 Mensagem ignorada: Detectado ECHO ({message_str[:30]}...)")
-            return ChatResponse(success=True, response="", user_id=request.user_id)
-        
-        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
-        if "@g.us" in request.user_id:
-            logger.info(f"👥 [SEGURANÇA] Grupo detectado e BLOQUEADO: {request.user_id}")
-            return ChatResponse(success=True, response="", user_id=request.user_id)
-        
+            return
+
         role = user_service.get_user_role(request.user_id)
-        # Garantir que o comando "autorizar" funcione sempre
-        message_clean = request.message.strip()
         
-        # --- NOVO: Lógica de Confirmação de Vinculação Automática (SIM/NÃO) ---
+        # --- Lógica de Confirmação de Vinculação Automática (SIM/NÃO) ---
         pending_link = user_service.get_pending_trip_link(request.user_id)
         
         # --- Lógica de INCLUSÃO FORÇADA DE ARQUIVO IRRELEVANTE ---
         pending_irr = user_service.get_pending_irrelevancy(request.user_id)
-        if pending_irr and message_clean.lower() in ["sim", "s", "yes", "sim incluir", "incluir"]:
+        if pending_irr and message_str.lower() in ["sim", "s", "yes", "sim incluir", "incluir"]:
             logger.info(f"✅ Usuário forçou a inclusão do documento irrelevante: {pending_irr.get('filename')}")
             user_service.clear_pending_irrelevancy(request.user_id)
             
@@ -199,46 +197,43 @@ async def chat_endpoint(
                 if chunk_content.strip():
                     rag_svc.add_document(chunk_content, metadata)
             
-            msg = f"✅ Tudo bem! Eu incluí o arquivo *{pending_irr.get('filename')}* no seu dossiê da viagem mesmo não parecendo ter relação direta. Ele já está na minha memória."
+            msg = f"✅ Tudo bem! Eu incluí o arquivo *{pending_irr.get('filename')}* no seu dossiê da viagem mesmo não parecendo ter relação direta."
             n8n = N8nService()
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
-            return ChatResponse(success=True, response=msg, user_id=request.user_id)
+            n8n.enviar_resposta_usuario(request.user_id, msg, bypass_firewall=True)
+            return
         
-        if pending_irr and message_clean.lower() in ["não", "nao", "n", "no", "descartar"]:
+        if pending_irr and message_str.lower() in ["não", "nao", "n", "no", "descartar"]:
             user_service.clear_pending_irrelevancy(request.user_id)
             msg = "Ok, descartei o arquivo. Como posso ajudar com a viagem hoje?"
             n8n = N8nService()
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
-            return ChatResponse(success=True, response=msg, user_id=request.user_id)
-        # --------------------------------------------------------------------
+            n8n.enviar_resposta_usuario(request.user_id, msg, bypass_firewall=True)
+            return
 
         if pending_link:
-            msg_upper = message_clean.upper()
+            msg_upper = message_str.upper()
             if msg_upper in ["SIM", "S", "YES", "OK", "CONFIRMAR"]:
                 host_id = pending_link["host_user_id"]
                 trip_id = pending_link["trip_id"]
                 dest = pending_link["destination"]
                 
-                # Efetiva a vinculação e autorização
                 user_service.authorize_guest(host_id, request.user_id, trip_id)
                 user_service.set_active_trip(request.user_id, trip_id)
                 user_service.clear_pending_trip_link(request.user_id)
                 
-                resp = f"✅ *Vinculação Confirmada!*\nAgora você e o Administrador compartilham o planejamento para *{dest}*.\n\nQualquer documento que um de vocês enviar será memorizado para ambos. Como posso ajudar com a viagem hoje?"
+                resp = f"✅ *Vinculação Confirmada!*\nAgora você e o Administrador compartilham o planejamento para *{dest}*."
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp, bypass_firewall=True)
-                return ChatResponse(success=True, response=resp, user_id=request.user_id)
+                n8n.enviar_resposta_usuario(request.user_id, resp, bypass_firewall=True)
+                return
             
             elif msg_upper in ["NÃO", "NAO", "N", "NO", "RECUSAR"]:
                 user_service.clear_pending_trip_link(request.user_id)
-                resp = "Entendido. Mantive seu planejamento separado e privado. Para qualquer dúvida, estou à disposição!"
+                resp = "Entendido. Mantive seu planejamento separado e privado."
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp, bypass_firewall=True)
-                return ChatResponse(success=True, response=resp, user_id=request.user_id)
-        # --------------------------------------------------------------------
+                n8n.enviar_resposta_usuario(request.user_id, resp, bypass_firewall=True)
+                return
 
-        if role == "admin" and message_clean.lower().startswith("broadcast:"):
-            broadcast_msg = message_clean.split(":", 1)[1].strip()
+        if role == "admin" and message_str.lower().startswith("broadcast:"):
+            broadcast_msg = message_str.split(":", 1)[1].strip()
             if not broadcast_msg:
                 resp = "❌ Por favor, digite a mensagem após o 'broadcast:'"
             else:
@@ -248,98 +243,70 @@ async def chat_endpoint(
                 resp = f"✅ Transmissão concluída!\nEnviado para {results['success']} usuários. Falhas: {results['failed']}."
             
             n8n = N8nService()
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, resp)
-            return ChatResponse(success=True, response=resp, user_id=request.user_id)
+            n8n.enviar_resposta_usuario(request.user_id, resp)
+            return
 
-        if role == "admin" and (message_clean.lower() in ["ok", "sim"] or message_clean.lower().startswith("sim ")):
-            logger.info(f"👑 Admin {request.user_id} enviou comando de autorização: {message_clean}")
-            if message_clean.lower() in ["ok", "sim"]:
-                # Pega o último pedido pendente
+        if role == "admin" and (message_str.lower() in ["ok", "sim"] or message_str.lower().startswith("sim ")):
+            logger.info(f"👑 Admin {request.user_id} enviou comando de autorização: {message_str}")
+            guest_id = None
+            if message_str.lower() in ["ok", "sim"]:
                 admin_user = user_service.get_user(request.user_id)
                 pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
-                
                 if not pending_requests:
-                    # Tentar fallback: Procura por QUALQUER usuário 'unauthorized' no DB nas últimas 2h
-                    logger.warning("⚠️ Sem pending_requests explícitos. Buscando usuários unauthorized recentes...")
                     unauthorized_users = [uid for uid, data in user_service.users.items() if data.get("role") == "unauthorized"]
-                    if unauthorized_users:
-                        guest_id = unauthorized_users[-1] # Pega o último
-                        logger.info(f"🔄 Fallback: Autorizando último unauthorized encontrado: {guest_id}")
-                    else:
-                        msg = "❌ Não há pedidos de acesso pendentes ou usuários não autorizados recentes."
-                        n8n = N8nService()
-                        background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
-                        return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                    if unauthorized_users: guest_id = unauthorized_users[-1]
                 else:
-                    # Pega o pedido mais recente
-                    guest_id = sorted(pending_requests.items(), key=lambda x: x[1], reverse=True)[0][0]
+                    guest_id = sorted(pending_requests.items(), key=lambda x: x[1]['timestamp'] if isinstance(x[1], dict) else x[1], reverse=True)[0][0]
             else:
-                parts = message_clean.split(maxsplit=1)
-                guest_id = user_service.normalize_phone(parts[1])
+                parts = message_str.split(maxsplit=1)
+                if len(parts) > 1: guest_id = user_service.normalize_phone(parts[1])
 
-            # [SMART AUTHORIZATION] Verificar se existe uma trip sugerida (match automático)
-            admin_user = user_service.get_user(request.user_id)
-            pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
-            guest_request = pending_requests.get(guest_id, {})
-            suggested_trip = guest_request.get("suggested_trip_id") if isinstance(guest_request, dict) else None
-            
-            active_trip = suggested_trip or user_service.get_active_trip(request.user_id)
-            logger.info(f"⚙️ Tentando autorizar {guest_id} para a trip {active_trip} (Sugerida: {bool(suggested_trip)})")
-            
-            # 🛡️ FALLBACK: Se o admin não tem viagem ativa setada nem sugestão, mas existe uma única viagem registrada para ele
-            if not active_trip:
-                from app.services.trip_service import TripService
-                trip_svc = TripService()
-                admin_trips = [t for t in trip_svc.trips if t["user_id"] == request.user_id]
-                if len(admin_trips) == 1:
-                    active_trip = admin_trips[0]["id"]
-                    user_service.set_active_trip(request.user_id, active_trip)
-                    logger.info(f"🔄 Fallback: Ativando única viagem encontrada '{active_trip}' para o admin.")
+            if guest_id:
+                # [SMART AUTHORIZATION]
+                admin_user = user_service.get_user(request.user_id)
+                pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
+                guest_request = pending_requests.get(guest_id, {})
+                suggested_trip = guest_request.get("suggested_trip_id") if isinstance(guest_request, dict) else None
+                
+                active_trip = suggested_trip or user_service.get_active_trip(request.user_id)
+                
+                if not active_trip:
+                    from app.services.trip_service import TripService
+                    trip_svc = TripService()
+                    admin_trips = [t for t in trip_svc.trips if t["user_id"] == request.user_id]
+                    if len(admin_trips) == 1:
+                        active_trip = admin_trips[0]["id"]
+                        user_service.set_active_trip(request.user_id, active_trip)
 
-            success_trip_id = None
-            if active_trip:
-                success_trip_id = user_service.authorize_guest(request.user_id, guest_id, active_trip)
-            
-            if success_trip_id:
-                msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
-                msg_guest = (
-                    f"🎉 Olá! O Administrador liberou seu acesso. Eu sou o *Seven Assistant Travel*. "
-                    f"Posso te ajudar a organizar roteiros, passagens e reservas, além de dar dicas proativas durante sua viagem!\n\n"
-                    f"Para começar, me envie o seu *roteiro* (mesmo que seja apenas um rascunho com datas e local) para que eu possa planejar tudo pra você!"
-                )
+                success_trip_id = None
+                if active_trip:
+                    success_trip_id = user_service.authorize_guest(request.user_id, guest_id, active_trip)
                 
                 n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, guest_id, msg_guest, bypass_firewall=True)
-                return ChatResponse(success=True, response=msg_admin, user_id=request.user_id)
-            else:
-                msg = "❌ Falha ao autorizar. Você tem uma Viagem Ativa cadastrada ou documento enviado?"
-                n8n = N8nService()
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg, bypass_firewall=True)
-                return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                if success_trip_id:
+                    msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
+                    msg_guest = (
+                        f"🎉 Olá! O Administrador liberou seu acesso. Eu sou o *Seven Assistant Travel*."
+                    )
+                    n8n.enviar_resposta_usuario(guest_id, msg_guest, bypass_firewall=True)
+                    n8n.enviar_resposta_usuario(request.user_id, msg_admin, bypass_firewall=True)
+                else:
+                    n8n.enviar_resposta_usuario(request.user_id, "❌ Falha ao autorizar. Viagem ativa não encontrada.", bypass_firewall=True)
+            return
                 
-        # Manter compatibilidade do comando antigo completo
-        elif role == "admin" and message_clean.lower().startswith("autorizar "):
-            parts = message_clean.split(maxsplit=2) # Split apenas nos primeiros 2 espaços
+        elif role == "admin" and message_str.lower().startswith("autorizar "):
+            parts = message_str.split(maxsplit=2)
             if len(parts) >= 3:
                 guest_id = parts[1]
                 trip_id = parts[2].replace("<", "").replace(">", "").strip()
                 success = user_service.authorize_guest(request.user_id, guest_id, trip_id)
                 msg = f"✅ Contato {guest_id} autorizado para a viagem '{trip_id}'!" if success else "❌ Falha ao autorizar."
-                
                 n8n = N8nService()
-                # 🛑 REMOVIDO: Envio via background task redundante
-                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
-                return ChatResponse(success=True, response=msg, user_id=request.user_id)
-            else:
-                msg = "⚠️ Formato incorreto. Use: sim <numero> ou autorizar <numero> <viagem>"
-                n8n = N8nService()
-                # background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, msg)
-                return ChatResponse(success=True, response=msg, user_id=request.user_id)
+                n8n.enviar_resposta_usuario(request.user_id, msg, bypass_firewall=True)
+            return
 
         if role == "unauthorized":
-            # [REGISTRO] Salva na fila de espera do Admin com o Nome
             should_notify = user_service.register_access_request(request.user_id, request.push_name)
-            
             if should_notify:
                 n8n = N8nService()
                 admin_msg = (
@@ -349,39 +316,22 @@ async def chat_endpoint(
                     f"💬 Mensagem: \"{request.message}\"\n\n"
                     f"Envie *sim {request.user_id}* para autorizar."
                 )
-                # Notificação para o Admin (sempre liberado pelo Firewall via normalize_phone)
-                background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
-                logger.info(f"📢 Admin notificado sobre acesso pendente: {request.user_id}")
+                n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
+            return
 
-            # [SILENT MODE] O robô JAMAIS deve responder ao usuário não autorizado.
-            return ChatResponse(success=True, response="", user_id=request.user_id)
-
-        # Passamos o user_id como thread_id para o LangGraph manter a memória da conversa
+        # Chamada pesada da IA
         resposta_ia = agent.chat(user_input=request.message, thread_id=request.user_id)
         
-        # 🔑 FECHANDO O LOOP: envia a resposta de volta ao WhatsApp via n8n em background
-        # Isso evita travar o webhook enquanto o n8n processa o envio
         if resposta_ia:
             n8n = N8nService()
-            background_tasks.add_task(
-                n8n.enviar_resposta_usuario,
-                request.user_id,
-                resposta_ia,
-                bypass_firewall=True
-            )
-            logger.info(f"✅ Resposta agendada para envio ao WhatsApp ({request.user_id})")
-        
-        return ChatResponse(
-            success=True,
-            response=resposta_ia,
-            user_id=request.user_id
-        )
+            n8n.enviar_resposta_usuario(request.user_id, resposta_ia, bypass_firewall=True)
+            logger.info(f"✅ Resposta enviada ao WhatsApp ({request.user_id}) após processamento background")
     except Exception as e:
-        logger.error(f"❌ Erro ao processar chat: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro interno no processamento do agente: {str(e)}"
-        )
+        logger.error(f"❌ Erro no processamento background: {e}")
+        try:
+            n8n = N8nService()
+            n8n.enviar_resposta_usuario(request.user_id, "⚠️ Desculpe, tive um erro interno ao processar sua mensagem.", bypass_firewall=True)
+        except: pass
 
 @router.post("/upload-document")
 async def upload_document(
@@ -432,8 +382,7 @@ async def upload_document(
 async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks):
     """
     Endpoint para receber mídias (Base64) redirecionadas pelo n8n.
-    Após indexar o documento no RAG, envia confirmação ao usuário via WhatsApp
-    e realiza gap analysis para verificar documentos faltantes.
+    Responde imediatamente e processa em background.
     """
     logger.info(f"📥 Recebendo mídia ({request.filename}) de {request.user_id} (ID: {request.message_id})")
     
@@ -444,35 +393,37 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             return JSONResponse(status_code=202, content={"success": True, "message": "Duplicata ignorada."})
         _dedup_cache[request.message_id] = True
 
+    # Validação rápida e resposta imediata
+    background_tasks.add_task(process_media_webhook, request)
+    return JSONResponse(status_code=202, content={"success": True, "message": "Recebido para processamento."})
+
+async def process_media_webhook(request: MediaRequest):
+    """Lógica de processamento de mídia em background"""
     try:
         from app.services.user_service import UserService
+        from app.services.document_ingestor import DocumentIngestor
+        from app.services.n8n_service import N8nService
+        
         user_service = UserService()
-        # --- NOVO: FILTRO DE GRUPOS (SEGURANÇA EXTRA) ---
+        
+        # --- NOVO: FILTRO DE GRUPOS ---
         if "@g.us" in request.user_id:
             logger.info(f"👥 Grupo detectado e ignorado (Media): {request.user_id}")
-            return JSONResponse(status_code=202, content={"success": True, "message": "Ignorado (Grupo)"})
+            return
 
         user_data = user_service.get_user(request.user_id)
         base_role = user_data.get("role") if user_data else "unauthorized"
         
         if base_role == "unauthorized":
             logger.info(f"⏳ Processando mídia (unauthorized) para preview do Admin: {request.user_id}")
-            
-            # [SMART MATCH] Tentar extrair dados do documento mesmo sem autorização (Dry Run)
             ingestor = DocumentIngestor()
             data_payload = {
                 "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net", "id": request.message_id},
-                "message": {
-                    "documentMessage": {
-                        "fileName": request.filename,
-                        "mimetype": request.mimetype
-                    }
-                },
+                "message": {"documentMessage": {"fileName": request.filename, "mimetype": request.mimetype}},
                 "base64": request.base64,
                 "message_id": request.message_id
             }
             
-            # Dry run apenas extrai e busca matches, não salva no RAG nem no Drive
             result = ingestor.ingest_from_webhook(data_payload, dry_run=True)
             match = result.get("trip_match")
             
@@ -480,12 +431,11 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
             match_info = ""
             if match:
                 suggested_trip_id = match["trip_id"]
-                match_info = f"\n\n🔍 *Match de Viagem Detectado!*\n📍 Destino: {match['destination']}\n📅 Data: {match['start_date']}\n👤 Host: {match['host_user_id']}\n\nO sistema sugere vincular este usuário ao grupo do Host acima."
+                match_info = f"\n\n🔍 *Match de Viagem Detectado!*\n📍 Destino: {match['destination']}\n📅 Data: {match['start_date']}"
             
-            # [SILENT MODE] Notifica apenas o Admin, NUNCA responde ao usuário.
-            n8n = N8nService()
             user_service.register_access_request(request.user_id, request.push_name, suggested_trip_id=suggested_trip_id)
             
+            n8n = N8nService()
             admin_msg = (
                 f"🚨 *Nova Solicitação de Acesso com Documento*\n\n"
                 f"👤 Nome: {request.push_name}\n"
@@ -493,24 +443,14 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                 f"📄 Arquivo: {request.filename}{match_info}\n\n"
                 f"Envie *sim {request.user_id}* para autorizar."
             )
-            background_tasks.add_task(n8n.enviar_resposta_usuario, settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
-            
-            return JSONResponse(status_code=202, content={
-                "success": True, 
-                "message": "Enviado para aprovação do Administrador."
-            })
+            n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
+            return
 
-        request.user_id = user_service.normalize_phone(request.user_id)
+        normalized_uid = user_service.normalize_phone(request.user_id)
         ingestor = DocumentIngestor()
-        # Adaptar o payload para o formato esperado pelo ingestor
         data_payload = {
-            "key": {"remoteJid": f"{request.user_id}@s.whatsapp.net", "id": request.message_id},
-            "message": {
-                "documentMessage": {
-                    "fileName": request.filename,
-                    "mimetype": request.mimetype
-                }
-            },
+            "key": {"remoteJid": f"{normalized_uid}@s.whatsapp.net", "id": request.message_id},
+            "message": {"documentMessage": {"fileName": request.filename, "mimetype": request.mimetype}},
             "base64": request.base64,
             "message_id": request.message_id
         }
@@ -518,27 +458,19 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
         result = ingestor.ingest_from_webhook(data_payload)
         
         if result.get("success"):
-            # 🛡️ VERICAÇÃO DE CONFLITO (Mesmo viajante + Mesma categoria)
+            # 🛡️ CONFLITO
             if result.get("status") == "conflict":
                 traveler = result.get("traveler", "Passageiro")
                 doc_type = result.get("document_type", "documento")
                 filename = result.get("filename")
                 
-                logger.warning(f"⚠️ Conflito de documento para {request.user_id}: {traveler} - {doc_type}")
-                
-                # Salvar no estado pendente para confirmação posterior
-                user_service.set_pending_substitution(request.user_id, {
-                    "filename": filename,
-                    "document_type": doc_type,
-                    "traveler": traveler,
-                    "mimetype": result.get("mimetype"),
-                    "text": result.get("text"),
+                user_service.set_pending_substitution(normalized_uid, {
+                    "filename": filename, "document_type": doc_type, "traveler": traveler,
+                    "mimetype": result.get("mimetype"), "text": result.get("text"),
                     "metadata": {
-                        "filename": filename,
-                        "thread_id": request.user_id,
-                        "trip_id": user_service.get_active_trip(request.user_id),
-                        "mimetype": result.get("mimetype"),
-                        "document_type": doc_type,
+                        "filename": filename, "thread_id": normalized_uid,
+                        "trip_id": user_service.get_active_trip(normalized_uid),
+                        "mimetype": result.get("mimetype"), "document_type": doc_type,
                         "primary_traveler_name": traveler,
                         "segment_info": result.get("extracted_data", {}).get("segment_info")
                     }
@@ -547,128 +479,89 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
                 n8n = N8nService()
                 conflict_msg = (
                     f"📝 *Vi que já temos um(a) {doc_type} para {traveler} salvo(a).*\n\n"
-                    f"Deseja substituir pelo novo arquivo (*{filename}*)?\n"
-                    "Responda: *sim substituir*"
+                    f"Deseja substituir pelo novo arquivo (*{filename}*)?\nResponda: *sim substituir*"
                 )
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, conflict_msg)
-                return JSONResponse(status_code=202, content={"success": True, "message": "Conflito detectado, aguardando confirmação."})
+                n8n.enviar_resposta_usuario(normalized_uid, conflict_msg)
+                return
 
-            # 🛡️ VERICAÇÃO DE RELEVÂNCIA: Se o documento não parece ser de viagem, avisar o usuário
+            # 🛡️ RELEVÂNCIA
             is_travel = result.get("is_travel_content", True)
             if not is_travel or result.get("status") == "irrelevant":
-                logger.warning(f"⚠️ Documento irrelevante detectado para {request.user_id}: {request.filename}")
                 n8n = N8nService()
-                warning_msg = (
-                    f"li aqui esse documento (*{request.filename}*) e vi que não possui relação direta com a viagem, "
-                    "tem certeza que quer incluir na memória da RAG?\n\nResponda: *sim incluir*"
-                )
-                
-                # Armazenar doc para forçar inclusão depois
-                user_service.set_pending_irrelevancy(request.user_id, {
+                warning_msg = (f"li aqui esse documento (*{request.filename}*) e vi que não possui relação direta com a viagem, tem certeza que quer incluir?\n\nResponda: *sim incluir*")
+                user_service.set_pending_irrelevancy(normalized_uid, {
                     "filename": result.get("filename") or request.filename,
                     "document_type": result.get("document_type", "documento"),
                     "traveler": result.get("traveler", "viajante"),
-                    "mimetype": result.get("mimetype"),
-                    "text": result.get("text"),
+                    "mimetype": result.get("mimetype"), "text": result.get("text"),
                     "metadata": result.get("metadata", {})
                 })
-                
-                background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, warning_msg)
-                return JSONResponse(status_code=202, content={"success": True, "message": "Aviso de irrelevância enviado."})
+                n8n.enviar_resposta_usuario(normalized_uid, warning_msg)
+                return
 
-            # 🔑 ENVIAR CONFIRMAÇÃO + GAP ANALYSIS ao usuário via WhatsApp
+            # 🔑 CONFIRMAÇÃO + GAP ANALYSIS
+            n8n = N8nService()
             doc_type = result.get("document_type", "documento")
+            confirm_msg = (f"✅ *Documento recebido e salvo!*\n\n📄 Arquivo: {request.filename}\n📂 Tipo detectado: {doc_type}\n\n")
             
-            def send_confirmation_and_gap_analysis():
-                """Confirma recebimento, analisa documentos faltantes e oferece compartilhamento"""
-                try:
-                    n8n = N8nService()
-                    confirm_msg = (
-                        f"✅ *Documento recebido e salvo!*\n\n"
-                        f"📄 Arquivo: {request.filename}\n"
-                        f"📂 Tipo detectado: {doc_type}\n\n"
-                    )
-                    
-                    from app.services.rag_service import RAGService
-                    rag = RAGService()
-                    user_docs = rag.list_user_documents(request.user_id)
-                    
-                    doc_types_found = set()
-                    for doc_name in user_docs:
-                        name_lower = doc_name.lower() if doc_name else ""
-                        if any(w in name_lower for w in ["passagem", "ticket", "boarding", "flight", "voo"]):
-                            doc_types_found.add("passagem")
-                        if any(w in name_lower for w in ["hotel", "reserva", "booking", "hospedagem"]):
-                            doc_types_found.add("hotel")
-                        if any(w in name_lower for w in ["seguro", "insurance", "apólice", "apolice"]):
-                            doc_types_found.add("seguro")
-                        if any(w in name_lower for w in ["carro", "car", "rental", "locação", "locadora"]):
-                            doc_types_found.add("carro")
-                    
-                    if doc_type: doc_types_found.add(doc_type.lower())
-                    
-                    missing = []
-                    checklist_items = {
-                        "passagem": "✈️ Passagens aéreas / Boarding pass",
-                        "hotel": "🏨 Reserva de hotel / hospedagem", 
-                        "seguro": "🛡️ Seguro viagem / apólice",
-                    }
-                    for key, label in checklist_items.items():
-                        if key not in doc_types_found: missing.append(label)
-                    
-                    if missing:
-                        confirm_msg += "📋 *Checklist de documentos:*\n" + "\n".join([f"  ⬜ {item}" for item in missing]) + "\n\n💡 Envie os documentos faltantes aqui no chat!"
-                    else:
-                        confirm_msg += "🎉 Todos os documentos essenciais já estão salvos!"
-                    
-                    confirm_msg += f"\n\n📊 *Status do RAG:* {len(user_docs)} documentos salvos."
-                    n8n.enviar_resposta_usuario(request.user_id, confirm_msg, bypass_firewall=True)
-                    
-                    # Oferta de Compartilhamento
-                    trip_match = result.get("trip_match")
-                    if trip_match:
-                        host_id = trip_match["host_user_id"]
-                        share_msg = f"🔗 *Viagem em Grupo Detectada!*\\nDeseja compartilhar seus documentos com `{host_id}`? Responda: *sim compartilhar*"
-                        user_service.set_pending_trip_link(request.user_id, host_id, trip_match["trip_id"], trip_match["destination"], trip_match["start_date"])
-                        n8n.enviar_resposta_usuario(request.user_id, share_msg, bypass_firewall=True)
-                except Exception as e:
-                    logger.error(f"❌ Erro ao enviar confirmação: {e}")
+            from app.services.rag_service import RAGService
+            rag = RAGService()
+            user_docs = rag.list_user_documents(normalized_uid)
             
-            background_tasks.add_task(send_confirmation_and_gap_analysis)
-            return {"success": True, "message": f"Documento {request.filename} indexado!"}
+            doc_types_found = set()
+            for doc_name in user_docs:
+                name_lower = doc_name.lower() if doc_name else ""
+                if any(w in name_lower for w in ["passagem", "ticket", "boarding", "flight", "voo"]): doc_types_found.add("passagem")
+                if any(w in name_lower for w in ["hotel", "reserva", "booking", "hospedagem"]): doc_types_found.add("hotel")
+                if any(w in name_lower for w in ["seguro", "insurance", "apólice"]): doc_types_found.add("seguro")
+                if any(w in name_lower for w in ["carro", "car", "rental", "locação"]): doc_types_found.add("carro")
+            
+            if doc_type: doc_types_found.add(doc_type.lower())
+            
+            missing = []
+            checklist_items = {"passagem": "✈️ Passagens aéreas", "hotel": "🏨 Reserva de hotel", "seguro": "🛡️ Seguro viagem"}
+            for key, label in checklist_items.items():
+                if key not in doc_types_found: missing.append(label)
+            
+            if missing:
+                confirm_msg += "📋 *Checklist:*\n" + "\n".join([f"  ⬜ {item}" for item in missing])
+            else:
+                confirm_msg += "🎉 Todos os documentos essenciais já estão salvos!"
+            
+            n8n.enviar_resposta_usuario(normalized_uid, confirm_msg, bypass_firewall=True)
+            
+            trip_match = result.get("trip_match")
+            if trip_match:
+                host_id = trip_match["host_user_id"]
+                share_msg = f"🔗 *Viagem em Grupo Detectada!*\nDeseja compartilhar seus documentos com `{host_id}`? Responda: *sim compartilhar*"
+                user_service.set_pending_trip_link(normalized_uid, host_id, trip_match["trip_id"], trip_match["destination"], trip_match["start_date"])
+                n8n.enviar_resposta_usuario(normalized_uid, share_msg, bypass_firewall=True)
         else:
             n8n = N8nService()
             error_msg = f"❌ *Falha ao processar:* {request.filename}\nErro: {result.get('error', 'Desconhecido')}"
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, error_msg)
-            # Retornamos 202 (Accepted) mesmo em erro lógico, pois já notificamos o usuário via WhatsApp.
-            # Isso evita que o Evolution/n8n tente reenviar a mídia várias vezes (retries).
-            return JSONResponse(status_code=202, content=result)
+            n8n.enviar_resposta_usuario(request.user_id, error_msg)
             
     except Exception as e:
-        logger.error(f"❌ Erro no webhook de mídia: {e}")
-        try:
-            n8n = N8nService()
-            background_tasks.add_task(n8n.enviar_resposta_usuario, request.user_id, f"❌ Erro inesperado ao processar {request.filename}.")
-        except: pass
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+        logger.error(f"❌ Erro no background media: {e}")
 
 @router.post("/webhook/location")
-async def location_webhook(request: LocationRequest, agent: TravelAgent = Depends(get_agent)):
+async def location_webhook(request: LocationRequest, background_tasks: BackgroundTasks, agent: TravelAgent = Depends(get_agent)):
     """
-    Endpoint para receber localização e disparar guia proativo automático
+    Endpoint para receber localização. Responde imediatamente e processa em background.
     """
-    logger.info(f"📍 Geolocalização Proativa: {request.user_id} em {request.latitude}, {request.longitude}")
-    
+    logger.info(f"📍 Localização recebida: {request.user_id}")
+    background_tasks.add_task(process_location_webhook, request, agent)
+    return {"success": True, "message": "Recebido"}
+
+async def process_location_webhook(request: LocationRequest, agent: TravelAgent):
+    """Lógica de geoguia proativo em background"""
     try:
         from app.services.user_service import UserService
         user_service = UserService()
         role = user_service.get_user_role(request.user_id)
         
-        if role == "unauthorized":
-            logger.warning(f"🚫 Localização ignorada. Usuário não autorizado: {request.user_id}")
-            return {"success": False, "message": "Não autorizado"}
+        if role == "unauthorized": return
 
-        # 1. Obter contexto Geográfico (Cidade/País/POI)
         from app.services.maps_service import GoogleMapsService
         maps = GoogleMapsService()
         geo_info = maps.reverse_geocode(request.latitude, request.longitude)
@@ -676,21 +569,11 @@ async def location_webhook(request: LocationRequest, agent: TravelAgent = Depend
         from datetime import datetime
         today_str = datetime.now().strftime("%Y-%m-%d")
         
-        # 2. Chamar a IA para decidir se deve enviar um 'Welcome' ou 'Guide' proativo
-        # Passamos a localização como um evento de sistema
         prompt = (
-            f"SISTEMA: O usuário acabou de chegar em: {geo_info}. "
-            f"Coordenadas: {request.latitude}, {request.longitude}. "
-            f"DATA DE HOJE: {today_str}.\n"
-            f"Analise os documentos dele (RAG) e, se ele estiver em um aeroporto (partida ou escala) ou destino final "
-            f"da viagem agendada para HOJE ou amanhã, gere uma mensagem PROATIVA de guia.\n\n"
-            "DIRETRIZES:\n"
-            "1. Diga onde ele está e o que ele tem que fazer a seguir (ex: 'Bem-vindo! Você chegou ao Terminal 2').\n"
-            "2. Se ele estiver chegando no destino, mencione Locadora de Carros ou Hotel (se houver no RAG).\n"
-            "3. Você DEVE oferecer o link de navegação usando a ferramenta 'provide_visual_navigation_map' "
-            "para o próximo ponto lógico (ex: Hertz Rental, Uber area, ou Hotel).\n"
-            "4. Mencione explicitamente que ele pode salvar o mapa para USO OFFLINE e economizar dados.\n"
-            "5. Se ele não estiver em local relevante, responda apenas 'IGNORE'."
+            f"SISTEMA: O usuário chegou em: {geo_info}. "
+            f"DATA: {today_str}.\n"
+            f"Analise o RAG. Se ele estiver no aeroporto ou destino hoje/amanhã, gere guia proativo.\n"
+            "Responda apenas 'IGNORE' se não for relevante."
         )
         
         response = agent.chat(user_input=prompt, thread_id=request.user_id)
@@ -699,10 +582,5 @@ async def location_webhook(request: LocationRequest, agent: TravelAgent = Depend
             from app.services.n8n_service import N8nService
             n8n = N8nService()
             n8n.enviar_resposta_usuario(request.user_id, response)
-            return {"success": True, "proactive_sent": True}
-            
-        return {"success": True, "proactive_sent": False}
-        
     except Exception as e:
-        logger.error(f"❌ Erro no Geoguia Proativo: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error(f"❌ Erro no Geoguia background: {e}")
