@@ -23,4 +23,5 @@ ENV PYTHONUNBUFFERED=1
 # Desativar Heathcheck do Docker nativamente para evitar mortes súbitas do Easypanel
 HEALTHCHECK NONE
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--loop", "asyncio"]
+# Usar formato de string (shell) para que a variável $PORT seja expandida corretamente
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT --loop asyncio
