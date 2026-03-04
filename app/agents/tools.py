@@ -302,14 +302,34 @@ def diagnostic_rag(config: RunnableConfig) -> str:
     return "\n".join(report)
 
 @tool
-def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "") -> str:
+def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "", adults: int = 1, children: int = 0) -> str:
     """
-    Busca ofertas de voos REAIS em tempo real.
-    origin/destination: Códigos IATA de 3 letras (ex: GRU para São Paulo, CDG para Paris).
+    Busca ofertas de voos REAIS em tempo real, ordenadas pelo menor preço.
+    origin/destination: Códigos IATA de 3 letras (ex: GRU para São Paulo, LIS para Lisboa, CDG para Paris).
     departure_date/return_date: Formato YYYY-MM-DD.
+    adults: número de adultos (padrão 1).
+    children: número de crianças (padrão 0).
+    Retorna as 5 melhores ofertas com preço, horários, paradas e ID para reserva.
     """
-    logger.info(f"✈️ Tool: Buscando voos de {origin} para {destination}")
-    return get_duffel_svc().search_flights(origin, destination, departure_date, return_date if return_date else None)
+    logger.info(f"✈️ Tool: Buscando voos {origin}->{destination} | {adults}A+{children}C")
+    return get_duffel_svc().search_flights(
+        origin, destination, departure_date,
+        return_date=return_date if return_date else None,
+        adults=adults,
+        children=children
+    )
+
+@tool
+def book_flight(offer_id: str, passenger_name: str, passenger_email: str, birth_date: str) -> str:
+    """
+    Reserva uma passagem aérea com 1 clique usando o ID da oferta.
+    offer_id: ID retornado pela busca (ex: off_0000B3v4lFTez3r3qPTKDa).
+    passenger_name: Nome completo do passageiro.
+    passenger_email: E-mail para receber a confirmação.
+    birth_date: Data de nascimento no formato YYYY-MM-DD.
+    """
+    logger.info(f"🎫 Tool: Reservando passagem {offer_id[:30]} para {passenger_name}")
+    return get_duffel_svc().create_order(offer_id, passenger_name, passenger_email, birth_date)
 
 @tool
 def search_government_notices(destination: str, query: str = "") -> str:
@@ -516,6 +536,7 @@ ALL_TOOLS = [
     list_travel_documents,
     diagnostic_rag,
     search_flights,
+    book_flight,
     search_hotels,
     convert_currency,
     get_internet_options,
