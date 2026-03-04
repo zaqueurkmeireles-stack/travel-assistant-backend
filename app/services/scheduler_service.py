@@ -94,6 +94,13 @@ class SchedulerService:
                 id="special_events_monitor",
                 replace_existing=True
             )
+            # Checkpoint Diário do Roteiro - 08:00 da manhã
+            self.scheduler.add_job(
+                self.itinerary_daily_checkpoint,
+                trigger=CronTrigger(hour=8, minute=0),
+                id="itinerary_daily_checkpoint",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -547,3 +554,77 @@ class SchedulerService:
 
             except Exception as e:
                 logger.error(f"Erro no monitor de eventos para trip {trip_id}: {e}")
+
+    def itinerary_daily_checkpoint(self):
+        """Checkpoint diário baseado no roteiro: envia 'Bom dia! Hoje é o Dia X da viagem' com resumo personalizado."""
+        logger.info("🗓️ Checkpoint Diário de Itinerário: Verificando viagens em andamento...")
+        from app.services.rag_service import RAGService
+        from app.agents.orchestrator import TravelAgent
+        
+        today = datetime.now()
+        today_date = today.date()
+        rag_svc = RAGService()
+        agent = TravelAgent()
+        
+        for trip in self.trip_svc.trips:
+            try:
+                start_str = trip.get("start_date")
+                end_str = trip.get("end_date")
+                if not start_str or not end_str:
+                    continue
+                
+                start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
+                end_dt = datetime.strptime(end_str, "%Y-%m-%d").date()
+                
+                # Só processar viagens que estão ACONTECENDO HOJE
+                if not (start_dt <= today_date <= end_dt):
+                    continue
+                
+                user_id = trip["user_id"]
+                destination = trip["destination"]
+                
+                # Evitar enviar dois checkpoints no mesmo dia
+                last_checkpoint = trip.get("last_itinerary_checkpoint_date")
+                if last_checkpoint == today_date.strftime("%Y-%m-%d"):
+                    continue
+                
+                # Calcular em qual dia da viagem o usuário está
+                travel_day = (today_date - start_dt).days + 1
+                total_days = (end_dt - start_dt).days + 1
+                
+                logger.info(f"☀️ Checkpoint Dia {travel_day}/{total_days} para {user_id} em {destination}")
+                
+                # Buscar roteiro no RAG para saber o que está planejado para hoje
+                itinerary_context = rag_svc.query(
+                    f"O que está planejado no roteiro para o dia {today_date.strftime('%d/%m/%Y')}? "
+                    f"Quais lugares, restaurantes ou atividades estão previstos para hoje?",
+                    thread_id=user_id,
+                    k=5
+                )
+                
+                # Construir o prompt para a IA gerar a mensagem de bom dia personalizada
+                prompt = (
+                    f"Você é o *Seven Assistant Travel*. Envie uma mensagem de BOM DIA para o usuário que está no **Dia {travel_day} de {total_days}** "
+                    f"da sua viagem para **{destination}**. "
+                    f"Data de hoje: {today_date.strftime('%d de %B de %Y')}.\n\n"
+                    f"CONTEXTO DO ROTEIRO (RAG): {itinerary_context[:2000] if itinerary_context else 'Roteiro não encontrado no RAG.'}\n\n"
+                    "INSTRUÇÕES:\n"
+                    "1. Comemore o dia de viagem com energia! Ex: '☀️ Bom dia! Hoje é o Dia 3 da sua aventura pela Europa!'\n"
+                    "2. Se encontrou informações de roteiro no RAG, resuma o que está planejado para hoje de forma animada.\n"
+                    "3. Se NÃO encontrou informações no RAG para hoje, pergunte ao usuário o que ele planeja fazer e ofereça sugestões para {destination}.\n"
+                    "4. Sempre termine perguntando: 'Precisando de dicas de restaurante, transporte ou qualquer outra coisa, é só chamar!'\n"
+                    "5. Use emojis, seja caloroso e útil. Mensagem para WhatsApp, máximo 3 parágrafos."
+                )
+                
+                checkpoint_msg = agent.chat(user_input=prompt, thread_id=user_id)
+                
+                if checkpoint_msg:
+                    self.n8n_svc.enviar_resposta_usuario(user_id, checkpoint_msg)
+                    logger.info(f"☀️ Checkpoint diário Dia {travel_day} enviado para {user_id}")
+                    
+                    # Marcar que enviamos o checkpoint hoje
+                    trip["last_itinerary_checkpoint_date"] = today_date.strftime("%Y-%m-%d")
+                    self.trip_svc._save_trips()
+                    
+            except Exception as e:
+                logger.error(f"Erro no checkpoint diário para trip {trip.get('id')}: {e}")

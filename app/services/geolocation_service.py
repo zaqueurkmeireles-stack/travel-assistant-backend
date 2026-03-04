@@ -209,7 +209,35 @@ class GeolocationService:
     def _generate_intelligent_arrival_guide(self, destination: str, user_id: str) -> str:
         """Gera guia de 'Boas-vindas' proativo usando IA e documentos do RAG"""
         from app.agents.orchestrator import TravelAgent
+        from app.services.rag_service import RAGService
         agent = TravelAgent()
+        rag_svc = RAGService()
+        
+        # Consultar RAG para localizar documentos de locação de carro
+        car_rental_context = rag_svc.query(
+            "locação de carro, empresa locadora, local de retirada, terminal de pickup, voucher aluguel veículo",
+            thread_id=user_id,
+            k=3
+        )
+        
+        # Verificar se encontrou dados relevantes de locação
+        has_car_rental = car_rental_context and len(car_rental_context) > 50 and "Nenhuma" not in car_rental_context
+        
+        car_rental_section = ""
+        if has_car_rental:
+            car_rental_section = (
+                f"\n\n📋 **DADOS DE LOCAÇÃO DO RAG**: {car_rental_context[:500]}\n"
+                "Com base nesses dados, OBRIGATORIAMENTE:\n"
+                "- Cite o NOME DA LOCADORA (Localiza, Hertz, etc.).\n"
+                "- Informe em qual TERMINAL ou ÁREA do aeroporto ela fica (pesquise se necessário).\n"
+                "- Explique o caminho mais fácil do desembarque até o guichê.\n"
+                "- Pergunte se ele quer ser guiado pelo mapa até a locadora.\n"
+            )
+        else:
+            car_rental_section = (
+                "\n\n- Se tiver locação de carro, veja a sinalização 'Car Rental / Aluguel de Carros'.\n"
+                "- Pergunte se ele tem contrato de locação e se quer que você o guie até a locadora.\n"
+            )
         
         prompt = (
             f"O usuário acabou de chegar em {destination}. "
@@ -218,12 +246,12 @@ class GeolocationService:
             "- Nome da locadora de veículos e onde fica o guichê (se houver aluguel).\n"
             "- Endereço do hotel e se o check-in já está disponível.\n"
             "- Como sair do aeroporto (Dica rápida de transporte).\n"
-            "- Pergunte se ele quer que você salve um MAPA OFFLINE para economizar dados ou se prefere direções por texto.\n\n"
-            "Seja carinhoso e proativo, como um guia especializado local."
+            "- Pergunte se ele quer um MAPA OFFLINE (para economizar dados) ou direções por texto.\n"
+            f"{car_rental_section}\n"
+            "Seja carinhoso e proativo, como um concierge especializado de elite."
         )
         
         try:
-            # Chamada direta ao agente para gerar o guia proativo
             guide = agent.chat(user_input=f"[SISTEMA: GUIA DE CHEGADA EM {destination}] {prompt}", thread_id=user_id)
             return guide
         except Exception as e:

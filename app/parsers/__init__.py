@@ -4,6 +4,9 @@ from .base_parser import BaseParser
 from .flight_parser import FlightParser
 from .hotel_parser import HotelParser
 from .document_parser import DocumentParser
+from .car_rental_parser import CarRentalParser
+from .insurance_parser import InsuranceParser
+from .ticket_parser import TicketParser
 from .parser_factory import ParserFactory
 
 __all__ = [
@@ -11,5 +14,8 @@ __all__ = [
     "FlightParser",
     "HotelParser",
     "DocumentParser",
+    "CarRentalParser",
+    "InsuranceParser",
+    "TicketParser",
     "ParserFactory"
 ]
