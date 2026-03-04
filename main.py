@@ -32,7 +32,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ [SCHEDULER] Falha ao iniciar: {e}")
     
-    logger.info(f"🌍 [ENVIRONMENT] Modo: {settings.ENVIRONMENT} | Port: {settings.PORT}")
+    logger.info(f"🌍 [ENVIRONMENT] Modo: {settings.ENVIRONMENT} | Port: {settings.PORT} | Name: {__name__}")
+    if __name__ != "__main__":
+        logger.warning("⚠️ [STARTUP] O aplicativo não foi iniciado via 'python main.py'. Isso pode causar problemas de porta no Easypanel.")
     
     yield
     
