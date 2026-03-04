@@ -95,10 +95,14 @@ if __name__ == "__main__":
     
     logger.add("logs/app.log", rotation="1 day", retention="7 days", level=settings.LOG_LEVEL)
     
+    # Forçar a leitura da porta para garantir 80 em produção no Easypanel
+    target_port = int(os.getenv("PORT", settings.PORT))
+    logger.info(f"🚀 [LAUNCH] Iniciando Servidor na porta: {target_port}")
+    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=settings.PORT,
+        port=target_port,
         reload=settings.DEBUG,
-        workers=1 # Um único worker por container para evitar lock de arquivos (ChromaDB)
+        workers=1
     )
