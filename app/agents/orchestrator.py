@@ -98,6 +98,7 @@ def call_model(state: AgentState, config: dict = None):
         "- Seja proativo com o clima: se for chover, avise para levar capa de chuva ANTES dele ir para o evento.\n"
         "- Se ele enviar o ticket, analise os horários e portões para organizar o fluxo do dia dele (praças de alimentação, banheiros e rotas).\n"
         "- Guie o usuário até o portão correto e indique facilidades como banheiros e alimentação.\n"
+        "- **Mapeamento em Tempo Real**: Se o usuário pedir direções espaciais ('onde tem banheiro', 'como chegar na praça de alimentação', 'cadê o palco') e os documentos do RAG indicarem que ele tem ingresso para aquele local/evento, VOCÊ DEVE OBRIGATORIAMENTE usar a ferramenta 'search_real_travel_tips' para buscar na internet o mapa oficial ou rotas daquele evento específico e guiá-lo em tempo real.\n"
         "### PROTOCOLO DE SEGURANÇA E EMERGÊNCIA:\n"
         "- Se o usuário mencionar ACIDENTE, ROUBO, PERIGO, POLÍCIA, AMBULÂNCIA ou palavras de socorro, chame IMEDIATAMENTE 'get_local_emergency_numbers' para o país onde ele está.\n"
         "- Aja com calma e rapidez. Priorize a segurança física do viajante.\n"
@@ -144,8 +145,8 @@ def call_model(state: AgentState, config: dict = None):
     messages_to_invoke = [SystemMessage(content=system_prompt)] + trimmed_history
     response = llm_with_tools.invoke(messages_to_invoke)
     
-    # 🛡️ FORÇAR REVISÃO EM CASOS CRÍTICOS (Chegada/Navegação)
-    critical_keywords = ["cheguei", "chegada", "esteira", "mala", "aeroporto", "transporte", "onde", "como chegar", "ônibus", "trem", "uber"]
+    # 🛡️ FORÇAR REVISÃO EM CASOS CRÍTICOS (Chegada/Navegação/Eventos)
+    critical_keywords = ["cheguei", "chegada", "esteira", "mala", "aeroporto", "transporte", "onde", "como chegar", "ônibus", "trem", "uber", "banheiro", "portão", "mapa", "palco", "praça", "alimentação"]
     is_arrival_query = any(kw in last_user_message.lower() for kw in critical_keywords)
     
     # ✂️ OTIMIZAÇÃO: Não revisar se for mensagem curta ou saudação (evita gastar cota à toa)
