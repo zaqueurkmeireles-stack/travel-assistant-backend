@@ -312,11 +312,20 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                     msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
                     msg_guest = (
                         "🎉 *Seja muito bem-vindo ao Seven Assistant Travel!*\n\n"
-                        "O Administrador acaba de liberar seu acesso exclusivo. Eu sou seu Concierge de Viagem de Elite.\n\n"
-                        "Para começarmos a planejar, me diga:\n"
-                        "1️⃣ *Para quais datas está programada sua viagem?*\n"
-                        "2️⃣ *Pode me enviar seu roteiro ou passagens assim que puder?*\n\n"
-                        "Quanto antes eu tiver esses dados, melhor poderei te guiar com dicas, alertas de voos e suporte local! 🌍✈️"
+                        "O Administrador acaba de liberar seu acesso exclusivo ao projeto de assistência de viagem mais avançado do mundo. Eu sou seu **Concierge de Elite** e estarei ao seu lado 24h por dia. 🌍✈️\n\n"
+                        "📋 **O SEU ECOSSISTEMA DE VIAGEM:**\n\n"
+                        "🔹 **Dossiê Digital Inteligente:** Me envie fotos ou PDFs de suas passagens, hotéis, seguros e aluguéis de carro. Eu leio e organizo tudo, cruzando os dados para que você nunca perca um horário.\n"
+                        "🔹 **Monitoramento Proativo & Segurança:** Eu monitoro sites governamentais, prefeituras e fontes globais de notícias para te alertar sobre mudanças em vistos, clima ou segurança no seu local exato.\n"
+                        "🔹 **Especialista em Entretenimento:** Tenho suporte dedicado para **F1, Grandes Shows e Parques (Disney/Universal)**. Posso ler seus ingressos, te guiar pelos portões corretos e dar dicas de filas e itinerários nos parques.\n"
+                        "🔹 **Guia de Chegada Geolocalizado:** Ao desembarcar e compartilhar sua localização, eu te guio em tempo real do terminal até sua locadora de veículos ou hotel.\n"
+                        "🔹 **Otimização de Custos:** Busco os melhores preços de voos e monitoro quedas de tarifas para que você sempre viaje na melhor oportunidade.\n"
+                        "🔹 **Álbum de Família Privado:** Todas as suas mídias enviadas aqui são organizadas automaticamente em uma pasta compartilhada no Google Drive da viagem.\n"
+                        "🔹 **Proteção de Grupo:** Se alguém perder o celular, bastará outro membro dizer \"Assumir Comando\" para que eu transfira toda a inteligência e alertas para o novo número.\n\n"
+                        "---\n"
+                        "**Para ativarmos sua consultoria agora:**\n"
+                        "1️⃣ *Quais as datas da sua viagem?*\n"
+                        "2️⃣ *Pode me enviar seu primeiro documento ou roteiro?*\n\n"
+                        "A jornada monumental começa agora! 🚀"
                     )
                     n8n.enviar_resposta_usuario(guest_id, msg_guest, bypass_firewall=True)
                     n8n.enviar_resposta_usuario(request.user_id, msg_admin, bypass_firewall=True)
