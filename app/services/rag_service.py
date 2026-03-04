@@ -127,15 +127,18 @@ class RAGService:
             # Gerar embedding via OpenAI
             vector = self.embeddings.embed_query(text)
             
-            # Adicionar ao estado em memória
-            # 🔥 [SMART] Garantir consistência dos metadados para filtros
+            # Garantir consistência dos metadados para filtros
+            # 'traveler' e 'primary_traveler_name' são sinônimos — normalizar os dois
+            traveler = metadata.get("traveler") or metadata.get("primary_traveler_name")
             full_metadata = {
                 "filename": metadata.get("filename"),
                 "thread_id": metadata.get("thread_id"),
                 "trip_id": metadata.get("trip_id"),
                 "mimetype": metadata.get("mimetype"),
                 "document_type": metadata.get("document_type", "geral"),
-                "primary_traveler_name": metadata.get("primary_traveler_name"),
+                "primary_traveler_name": traveler,
+                "traveler": traveler,           # <- campo que parsers usam
+                "uploaded_by": metadata.get("thread_id"),  # quem fez upload
                 "segment_info": metadata.get("segment_info")
             }
             
