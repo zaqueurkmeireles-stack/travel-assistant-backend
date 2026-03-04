@@ -215,6 +215,25 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
             n8n.enviar_resposta_usuario(request.user_id, msg, bypass_firewall=True)
             return
 
+        # --- Lógica de EMERGÊNCIA: Perdi meu celular / Assumir Responsável ---
+        emergency_keywords = ["perdi meu celular", "perdi o celular", "assumir comando", "assumir o robô", "trocar responsável"]
+        if any(kw in message_str.lower() for kw in emergency_keywords):
+            active_trip_id = user_service.get_active_trip(request.user_id)
+            if active_trip_id:
+                from app.services.trip_service import TripService
+                trip_svc = TripService()
+                success = trip_svc.set_primary_contact(active_trip_id, request.user_id)
+                if success:
+                    resp = (
+                        "🚨 *Comando de Emergência Recebido!*\n\n"
+                        "Entendido. Acabei de transferir a responsabilidade da viagem para este número.\n"
+                        "A partir de agora, **todas as mensagens proativas, alertas de voo e roteiros** serão enviados aqui.\n\n"
+                        "Sinto muito pelo celular perdido, mas fique tranquilo(a): eu cuido de tudo por aqui agora! 🛡️✈️"
+                    )
+                    n8n = N8nService()
+                    n8n.enviar_resposta_usuario(request.user_id, resp, bypass_firewall=True)
+                    return
+
         if pending_link:
             msg_upper = message_str.upper()
             if msg_upper in ["SIM", "S", "YES", "OK", "CONFIRMAR"]:

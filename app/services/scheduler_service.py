@@ -136,20 +136,21 @@ class SchedulerService:
                     if user_svc.get_user_role(user_id) != "guest":
                         continue
 
-                    audit_data = audit_svc.audit_trip(user_id, trip["id"], trip)
+                    # Entregar para o Responsável Primário (Primary Contact)
+                    target_user = trip.get("primary_contact_id", user_id)
                     
-                    # Só enviar se houver gaps relevantes
                     if audit_data.get("nights_covered", 0) < audit_data.get("trip_duration_days", 0) or audit_data.get("other_missing_items"):
                         report = audit_svc.generate_human_report(audit_data)
-                        self.n8n_svc.enviar_resposta_usuario(user_id, report)
-                        logger.info(f"📢 Relatório de Auditoria periódica enviado para {user_id}")
+                        self.n8n_svc.enviar_resposta_usuario(target_user, report)
+                        logger.info(f"📢 Relatório de Auditoria periódica enviado para {target_user}")
             except Exception as e:
                 logger.error(f"Erro ao auditar trip {trip['id']} no scheduler: {e}")
             
     def _process_alert(self, trip: dict):
-        """Processa e envia um alerta inteligente usando a IA"""
+        """Processa e envia um alerta inteligente usando a IA para o responsável"""
         alert_type = trip["pending_alert"]
-        user_id = trip["user_id"]
+        user_id = trip["user_id"] # Criador
+        target_user = trip.get("primary_contact_id", user_id)
         destination = trip["destination"]
         
         # Criar prompt contextual para a IA gerar o alerta
@@ -180,8 +181,8 @@ class SchedulerService:
             ai_message = agent.chat(user_input=prompt, thread_id=user_id)
             
             if ai_message:
-                logger.info(f"📨 Enviando alerta inteligente {alert_type} para {user_id}")
-                self.n8n_svc.enviar_resposta_usuario(user_id, ai_message)
+                logger.info(f"📨 Enviando alerta inteligente {alert_type} para {target_user}")
+                self.n8n_svc.enviar_resposta_usuario(target_user, ai_message)
                 self.trip_svc.mark_alert_sent(trip["id"], alert_type)
         except Exception as e:
             logger.error(f"❌ Falha ao gerar alerta inteligente: {e}")
@@ -619,8 +620,9 @@ class SchedulerService:
                 checkpoint_msg = agent.chat(user_input=prompt, thread_id=user_id)
                 
                 if checkpoint_msg:
-                    self.n8n_svc.enviar_resposta_usuario(user_id, checkpoint_msg)
-                    logger.info(f"☀️ Checkpoint diário Dia {travel_day} enviado para {user_id}")
+                    target_user = trip.get("primary_contact_id", user_id)
+                    self.n8n_svc.enviar_resposta_usuario(target_user, checkpoint_msg)
+                    logger.info(f"☀️ Checkpoint diário Dia {travel_day} enviado para {target_user}")
                     
                     # Marcar que enviamos o checkpoint hoje
                     trip["last_itinerary_checkpoint_date"] = today_date.strftime("%Y-%m-%d")
