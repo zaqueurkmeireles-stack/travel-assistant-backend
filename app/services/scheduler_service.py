@@ -532,6 +532,7 @@ class SchedulerService:
                     "2. Monte o **Guia Definitivo do Evento** respondendo: Onde ficam os portões de entrada e banheiros? O que PODE e NÃO PODE levar na mochila? Tem dica de estacionamento ou transporte sugerido?\n"
                     "3. Se você não tiver certeza de qual evento é pelos dados do ingresso ('RAG'), responda com a palavra exata: IGNORAR_ALERTA.\n"
                     "4. O texto deve ser mega animado, preparatório e direto para o WhastApp.\n"
+                    "5. **MUITO IMPORTANTE:** No final da mensagem, peça expressamente para o cliente **COMPARTILHAR A LOCALIZAÇÃO EM TEMPO REAL** no WhatsApp (Ícone 📎 -> Localização -> Em Tempo Real -> 8h) no momento em que chegar ao evento. Explique com empolgação que com o GPS ligado, caso ele pergunte 'onde fica o banheiro?', você conseguirá traçar a rota exata de onde ele está na multidão até a porta do banheiro!\n"
                 )
 
                 alert_content = agent.chat(user_input=prompt, thread_id=user_id)
