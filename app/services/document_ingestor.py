@@ -89,6 +89,10 @@ class DocumentIngestor:
                 from app.services.user_service import UserService
                 user_svc = UserService()
                 active_trip_id = user_svc.get_active_trip(sender_number)
+                
+                # Se não houver viagem ativa, usamos uma pasta genérica para o usuário
+                # Se houver, usamos a pasta unificada da viagem
+                trip_folder_key = active_trip_id or f"User_{sender_number}"
                 trip_name = "Mídia Diversas"
                 
                 if active_trip_id:
@@ -97,7 +101,7 @@ class DocumentIngestor:
                             trip_name = t["destination"]
                             break
                 
-                folder_id = self.drive_svc.get_trip_media_folder(sender_number, trip_name)
+                folder_id = self.drive_svc.get_trip_media_folder(trip_folder_key, trip_name)
                 if folder_id and not dry_run:
                     file_id = self.drive_svc.upload_file(file_content, filename, mimetype, folder_id)
                     drive_link = f"https://drive.google.com/file/d/{file_id}/view"
