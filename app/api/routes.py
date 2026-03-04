@@ -292,7 +292,12 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                 if success_trip_id:
                     msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
                     msg_guest = (
-                        f"🎉 Olá! O Administrador liberou seu acesso. Eu sou o *Seven Assistant Travel*."
+                        "🎉 *Seja muito bem-vindo ao Seven Assistant Travel!*\n\n"
+                        "O Administrador acaba de liberar seu acesso exclusivo. Eu sou seu Concierge de Viagem de Elite.\n\n"
+                        "Para começarmos a planejar, me diga:\n"
+                        "1️⃣ *Para quais datas está programada sua viagem?*\n"
+                        "2️⃣ *Pode me enviar seu roteiro ou passagens assim que puder?*\n\n"
+                        "Quanto antes eu tiver esses dados, melhor poderei te guiar com dicas, alertas de voos e suporte local! 🌍✈️"
                     )
                     n8n.enviar_resposta_usuario(guest_id, msg_guest, bypass_firewall=True)
                     n8n.enviar_resposta_usuario(request.user_id, msg_admin, bypass_firewall=True)
