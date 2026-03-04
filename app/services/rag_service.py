@@ -165,7 +165,7 @@ class RAGService:
         dot_product = np.dot(v2_matrix, v1.T).flatten()
         return dot_product / (norm_v1 * norm_v2)
 
-    def query(self, query_text: str, thread_id: str, k: int = 3) -> str:
+    def query(self, query_text: str, thread_id: str, k: int = 10) -> str:
         """Busca semântica filtrada por viagem ativa do usuário"""
         if not self.documents:
             return "Você ainda não enviou nenhum documento de viagem."

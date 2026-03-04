@@ -82,6 +82,7 @@ def call_model(state: AgentState, config: dict = None):
         "### GESTÃO DE DOCUMENTOS E RAG:\n"
         "- **Conflito de Documentos**: Se houver um documento pendente de substituição (ex: usuário enviou nova versão), use 'confirm_document_replacement' quando ele disser 'sim', 'substituir' ou 'pode salvar'.\n"
         "- **Listagem Filtrada**: Se o usuário pedir 'apenas passagens' ou 'ingressos de parques', use 'list_travel_documents' com o argumento 'category' adequado (passagem, parque, hotel, etc).\n"
+        "- **Precisão na Resposta**: Quando o usuário pedir para listar itens (ex: passagens, bilhetes, reservas), liste TODOS os documentos encontrados no RAG. NUNCA resuma ocultando alguns passageiros. Se o usuário pedir APENAS um dado específico (ex: só o número da reserva), filtre e mostre APENAS o que foi pedido (sem formatação extra ou detalhes desnecessários). Se não achar o que foi solicitado de alguém específico, diga explicitamente que não encontrou.\n"
         "- Você deve SEMPRE ser proativo: se o usuário enviar algo que parece um erro ou duplicata, pergunte antes de agir.\n"
         "### ARQUIVAMENTO DE MÍDIA:\n"
         "- Informe ao usuário que TODA foto ou vídeo enviado é salvo automaticamente em sua pasta da viagem no Google Drive.\n"
@@ -120,7 +121,7 @@ def call_model(state: AgentState, config: dict = None):
                 break
         
         if last_user_message and rag.documents:
-            rag_context = rag.query(last_user_message, thread_id, k=4)
+            rag_context = rag.query(last_user_message, thread_id, k=10)
             if rag_context and "ainda não enviou" not in rag_context and "Nenhuma informação" not in rag_context:
                 # 🛡️ Super Limite de Segurança (v1.2.3): truncate para 50k chars
                 # Isso garante que mesmo com histórico, não estoure os 128k tokens

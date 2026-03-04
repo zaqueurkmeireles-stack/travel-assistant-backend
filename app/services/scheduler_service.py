@@ -87,6 +87,13 @@ class SchedulerService:
                 id="gov_alerts_monitor",
                 replace_existing=True
             )
+            # Eventos Especiais (Ingressos/Shows) - 10:30 da manhã
+            self.scheduler.add_job(
+                self.monitor_special_events,
+                trigger=CronTrigger(hour=10, minute=30),
+                id="special_events_monitor",
+                replace_existing=True
+            )
             self.scheduler.start()
             logger.info("⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)")
 
@@ -328,27 +335,32 @@ class SchedulerService:
 
     def monitor_park_wait_times(self):
         """Monitor proativo de filas para usuários que estão 'No Parque'."""
-        logger.info("🎡 Monitorando filas dos parques para usuários ativos...")
-        
+        active_park_trips = []
         for trip in self.trip_svc.trips:
             park_id = trip.get("current_park_id")
             if not park_id:
                 continue
                 
-            user_id = trip["user_id"]
-            park_name = trip.get("current_park_name", "Parque")
-            
-            # [OTIMIZAÇÃO] Verificar se a viagem do parque aida está vigente (o usuário pode ter esquecido o current_park_id salvo)
+            # Verificar se a viagem do parque aida está vigente
             start_date_str = trip.get("start_date")
             end_date_str = trip.get("end_date", start_date_str)
             try:
                 start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 end_dt = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-                if not (start_dt <= datetime.now().date() <= end_dt):
-                    continue
+                if start_dt <= datetime.now().date() <= end_dt:
+                    active_park_trips.append((trip, park_id))
             except Exception:
                 continue
                 
+        if not active_park_trips:
+            return  # Fica silencioso se ninguém está no parque
+            
+        logger.info(f"🎡 Monitorando filas dos parques para {len(active_park_trips)} usuário(s) ativo(s)...")
+        
+        for trip, park_id in active_park_trips:
+            user_id = trip["user_id"]
+            park_name = trip.get("current_park_name", "Parque")
+            
             try:
                 from app.services.park_service import ParkService
                 park_svc = ParkService()
@@ -478,3 +490,59 @@ class SchedulerService:
                 
             except Exception as e:
                 logger.error(f"Erro no monitor governamental para trip {trip.get('id')}: {e}")
+
+    def monitor_special_events(self):
+        """Busca proativamente informações detalhadas (guias, banheiros, mapas) para Ingressos/Tickets do dia ou dia seguinte."""
+        logger.info("🎟️ Iniciando Monitor de Eventos Especiais (Ingressos/Tickets)...")
+        from datetime import datetime, timedelta
+        from app.services.rag_service import RAGService
+        from app.agents.orchestrator import TravelAgent
+
+        today = datetime.now()
+        tomorrow = today + timedelta(days=1)
+        rag_svc = RAGService()
+        agent = TravelAgent()
+
+        trips_to_monitor = self.trip_svc.get_active_monitoring_trips(today)
+
+        for trip in trips_to_monitor:
+            trip_id = trip["id"]
+            user_id = trip["user_id"]
+            
+            # Verifica se já mandamos um alerta de evento hoje para não espamar
+            if trip.get("last_special_event_alert_date") == today.strftime("%Y-%m-%d"):
+                continue
+
+            try:
+                # Pergutar ao RAG se existem ingressos para D-0 ou D-1
+                # Vamos forçar a busca via RAG porque é lá que guardamos os PDFs de Ingressos/Tickets
+                ingressos_rag = rag_svc.query("Liste detalhadamente quais ingressos, tickets de shows ou eventos existem para a data de HOJE ou AMANHÃ.", thread_id=user_id, k=5)
+                
+                # Se não tem ingresso relevante, ignorar
+                if "não" in ingressos_rag.lower() and len(ingressos_rag) < 100:
+                    continue
+
+                logger.info(f"🔎 Analisando ingressos encontrados para {user_id}: {ingressos_rag[:100]}...")
+
+                prompt = (
+                    f"Você é um concierge VIP de viagens. O usuário tem um ingresso/evento nos próximos 1-2 dias.\n"
+                    f"Baseado *estritamente* nos seguintes dados extraídos do seu ingresso: {ingressos_rag}\n\n"
+                    "INSTRUÇÕES OBRIGATÓRIAS:\n"
+                    "1. Use a ferramenta `search_real_travel_tips` de forma agressiva para procurar regras atualizadas sobre este EVENTO/LOCAL específico.\n"
+                    "2. Monte o **Guia Definitivo do Evento** respondendo: Onde ficam os portões de entrada e banheiros? O que PODE e NÃO PODE levar na mochila? Tem dica de estacionamento ou transporte sugerido?\n"
+                    "3. Se você não tiver certeza de qual evento é pelos dados do ingresso ('RAG'), responda com a palavra exata: IGNORAR_ALERTA.\n"
+                    "4. O texto deve ser mega animado, preparatório e direto para o WhastApp.\n"
+                )
+
+                alert_content = agent.chat(user_input=prompt, thread_id=user_id)
+
+                if alert_content and "IGNORAR_ALERTA" not in alert_content and len(alert_content) > 100:
+                    msg = f"🎟️ *GUIA VIP DE EVENTO* 🌟\n\n{alert_content}"
+                    self.n8n_svc.enviar_resposta_usuario(user_id, msg)
+                    logger.info(f"📢 Guia de evento enviado com sucesso para {user_id}")
+                    
+                    trip["last_special_event_alert_date"] = today.strftime("%Y-%m-%d")
+                    self.trip_svc._save_trips()
+
+            except Exception as e:
+                logger.error(f"Erro no monitor de eventos para trip {trip_id}: {e}")

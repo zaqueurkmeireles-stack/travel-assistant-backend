@@ -171,23 +171,29 @@ class DocumentIngestor:
                     "is_travel_content": False
                 }
             
-            if not dry_run and traveler:
-                # Buscar se já existe documento deste tipo para este viajante
+            if not dry_run:
+                # Buscar se já existe documento deste tipo no RAG
                 has_conflict = False
                 for doc in self.rag_svc.documents:
                     m = doc["metadata"]
-                    # Mesmo usuário (ou trip), mesmo tipo, mesmo viajante
-                    if (m.get("thread_id") == sender_number or m.get("trip_id") == active_trip) and \
-                       m.get("document_type") == doc_type and \
-                       m.get("primary_traveler_name") == traveler:
-                        
-                        # Se tiver informação de segmento (Ida/Volta), só é conflito se for o MESMO segmento
-                        if segment and m.get("segment_info"):
-                            if segment.lower() == m.get("segment_info", "").lower():
-                                has_conflict = True
-                                break
+                    # Mesmo usuário (ou trip) e mesmo tipo
+                    same_scope = (m.get("thread_id") == sender_number or m.get("trip_id") == active_trip)
+                    same_type = m.get("document_type") == doc_type
+                    
+                    if same_scope and same_type:
+                        # Se for documento pessoal (passagem, seguro), avalia o passageiro e segmento
+                        if doc_type.lower() in ["passagem", "seguro"]:
+                            if traveler and m.get("primary_traveler_name") == traveler:
+                                if segment and m.get("segment_info"):
+                                    if segment.lower() == m.get("segment_info", "").lower():
+                                        has_conflict = True
+                                        break
+                                else:
+                                    has_conflict = True
+                                    break
                         else:
-                            # Se um dos dois não tem segmento, tratamos como conflito de tipo geral para o passageiro
+                            # Para roteiro, locação de carro, hotel, apenas o mesmo tipo no mesmo escopo gera conflito
+                            # pois geralmente só há um roteiro ou reserva de locação (ou queremos avisar o usuário da reescrita)
                             has_conflict = True
                             break
                 

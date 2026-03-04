@@ -80,6 +80,12 @@ def get_parser_factory() -> ParserFactory:
 # ENDPOINTS
 # ============================================================
 
+@router.get("/")
+@router.get("/health")
+async def health_check():
+    """Endpoint for platforms like Easypanel to verify the app is alive."""
+    return JSONResponse(content={"status": "ok", "message": "TravelCompanion AI is running"})
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(
     request: ChatRequest,
@@ -126,8 +132,8 @@ async def chat_endpoint(
 
         # 🛑 PREVENÇÃO DE LOOP INFINITO: Ignorar mensagens enviadas pelo próprio bot
         bot_number = user_service.normalize_phone(getattr(settings, "BOT_WHATSAPP_NUMBER", ""))
-        if bot_number and request.user_id == bot_number:
-            logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot.")
+        if bot_number and (request.user_id == bot_number or (len(bot_number) >= 8 and request.user_id.endswith(bot_number[-8:]))):
+            logger.info("🛑 Mensagem ignorada: O remetente é o próprio bot (Eco do sistema).")
             return ChatResponse(success=True, response="", user_id=request.user_id)
 
         # Agenda o processamento pesado para rodar em background
@@ -458,7 +464,6 @@ async def process_media_webhook(request: MediaRequest):
         result = ingestor.ingest_from_webhook(data_payload)
         
         if result.get("success"):
-            # 🛡️ CONFLITO
             if result.get("status") == "conflict":
                 traveler = result.get("traveler", "Passageiro")
                 doc_type = result.get("document_type", "documento")
@@ -477,8 +482,15 @@ async def process_media_webhook(request: MediaRequest):
                 })
                 
                 n8n = N8nService()
+                
+                # Mensagem inteligente baseada no tipo de documento
+                if doc_type.lower() in ["passagem", "seguro"]:
+                    conflict_text = f"📝 *Vi que já temos um(a) {doc_type} para {traveler} salvo(a).*"
+                else:
+                    conflict_text = f"📝 *Vi que já temos um(a) {doc_type} salvo(a) para esta viagem.*"
+                
                 conflict_msg = (
-                    f"📝 *Vi que já temos um(a) {doc_type} para {traveler} salvo(a).*\n\n"
+                    f"{conflict_text}\n\n"
                     f"Deseja substituir pelo novo arquivo (*{filename}*)?\nResponda: *sim substituir*"
                 )
                 n8n.enviar_resposta_usuario(normalized_uid, conflict_msg)
@@ -515,18 +527,27 @@ async def process_media_webhook(request: MediaRequest):
                 if any(w in name_lower for w in ["hotel", "reserva", "booking", "hospedagem"]): doc_types_found.add("hotel")
                 if any(w in name_lower for w in ["seguro", "insurance", "apólice"]): doc_types_found.add("seguro")
                 if any(w in name_lower for w in ["carro", "car", "rental", "locação"]): doc_types_found.add("carro")
+                if any(w in name_lower for w in ["roteiro", "itinerary", "guia"]): doc_types_found.add("roteiro")
+                if any(w in name_lower for w in ["ingresso", "parque", "show"]): doc_types_found.add("ingresso")
             
-            if doc_type: doc_types_found.add(doc_type.lower())
+            if doc_type:
+                dt_lower = doc_type.lower()
+                doc_types_found.add(dt_lower)
+                if any(w in dt_lower for w in ["roteiro", "itinerary", "guia"]): doc_types_found.add("roteiro")
+                if any(w in dt_lower for w in ["ingresso", "parque", "show"]): doc_types_found.add("ingresso")
             
-            missing = []
-            checklist_items = {"passagem": "✈️ Passagens aéreas", "hotel": "🏨 Reserva de hotel", "seguro": "🛡️ Seguro viagem"}
-            for key, label in checklist_items.items():
-                if key not in doc_types_found: missing.append(label)
+            docs_summary = []
+            if "passagem" in doc_types_found: docs_summary.append("✈️ Passagens aéreas")
+            if "hotel" in doc_types_found: docs_summary.append("🏨 Reserva de hotel")
+            if "seguro" in doc_types_found: docs_summary.append("🛡️ Seguro viagem")
+            if "carro" in doc_types_found: docs_summary.append("🚗 Aluguel de carro")
+            if "roteiro" in doc_types_found: docs_summary.append("🗺️ Roteiro / Guia")
+            if "ingresso" in doc_types_found: docs_summary.append("🎟️ Ingressos/Tickets")
             
-            if missing:
-                confirm_msg += "📋 *Checklist:*\n" + "\n".join([f"  ⬜ {item}" for item in missing])
+            if docs_summary:
+                confirm_msg += "📂 *O que já temos salvo na sua documentação:*\n" + "\n".join([f"  ✅ {item}" for item in docs_summary])
             else:
-                confirm_msg += "🎉 Todos os documentos essenciais já estão salvos!"
+                confirm_msg += "🎉 Este é o primeiro documento salvo da sua viagem!"
             
             n8n.enviar_resposta_usuario(normalized_uid, confirm_msg, bypass_firewall=True)
             
