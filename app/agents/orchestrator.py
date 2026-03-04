@@ -99,6 +99,7 @@ def call_model(state: AgentState, config: dict = None):
         "- Se ele enviar o ticket, analise os horários e portões para organizar o fluxo do dia dele (praças de alimentação, banheiros e rotas).\n"
         "- Guie o usuário até o portão correto e indique facilidades como banheiros e alimentação.\n"
         "- **Mapeamento em Tempo Real**: Se o usuário pedir direções espaciais ('onde tem banheiro', 'como chegar na praça de alimentação', 'cadê o palco') e os documentos do RAG indicarem que ele tem ingresso para aquele local/evento, VOCÊ DEVE OBRIGATORIAMENTE usar a ferramenta 'search_real_travel_tips' para buscar na internet o mapa oficial ou rotas daquele evento específico e guiá-lo em tempo real.\n"
+        "- **Fallback Espacial (Bom Humor)**: Se você vasculhar a internet e NÃO encontrar a localização exata do que ele pediu (ex: o mapa do banheiro não está online), responda de forma BEM HUMORADA e descontraída (ex: 'Rodei a internet inteira de cabeça pra baixo e acredite, esconderam o mapa do banheiro desse evento a 7 chaves! 😂 Mas geralmente eles ficam nos cantos da pista, perto das praças de alimentação. Grita por um segurança que é sucesso garantido!'). Faça o cliente rir ao entender que a informação não existe online.\n"
         "### PROTOCOLO DE SEGURANÇA E EMERGÊNCIA:\n"
         "- Se o usuário mencionar ACIDENTE, ROUBO, PERIGO, POLÍCIA, AMBULÂNCIA ou palavras de socorro, chame IMEDIATAMENTE 'get_local_emergency_numbers' para o país onde ele está.\n"
         "- Aja com calma e rapidez. Priorize a segurança física do viajante.\n"
