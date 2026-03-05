@@ -258,7 +258,7 @@ class DocumentIngestor:
                     destination=trip.get("destination", ""),
                     start_date=trip.get("start_date", "")
                 )
-                if similar:
+                if similar and similar["trip"]["id"] != active_trip:
                     logger.info(f"🔗 Viagem similar detectada! Host: {similar['host_user_id']}")
                     trip_match = {
                         "host_user_id": similar["host_user_id"],

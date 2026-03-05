@@ -98,7 +98,14 @@ class SchedulerService:
             self.scheduler.add_job(
                 self.itinerary_daily_checkpoint,
                 trigger=CronTrigger(hour=8, minute=0),
-                id="itinerary_daily_checkpoint",
+                id="itinerary_checkpoint",
+                replace_existing=True
+            )
+            # Deep-Dive de Roteiro (POIs) - 09:30 da manhã
+            self.scheduler.add_job(
+                self.itinerary_poi_deep_dive,
+                trigger=CronTrigger(hour=9, minute=30),
+                id="itinerary_poi_deep_dive",
                 replace_existing=True
             )
             self.scheduler.start()
@@ -630,3 +637,76 @@ class SchedulerService:
                     
             except Exception as e:
                 logger.error(f"Erro no checkpoint diário para trip {trip.get('id')}: {e}")
+
+    def itinerary_poi_deep_dive(self):
+        """Pesquisa proativamente sobre pontos de interesse (POIs) peculiares no roteiro (D-10 e D-1)."""
+        logger.info("🧐 Iniciando Deep-Dive Proativo de Roteiro (D-10 e D-1)...")
+        from datetime import datetime, timedelta
+        from app.agents.orchestrator import TravelAgent
+        from app.services.rag_service import RAGService
+
+        today = datetime.now()
+        today_date = today.date()
+        agent = TravelAgent()
+        rag_svc = RAGService()
+
+        for trip in self.trip_svc.trips:
+            try:
+                user_id = trip["user_id"]
+                target_user = trip.get("primary_contact_id", user_id)
+                start_dt = datetime.strptime(trip["start_date"], "%Y-%m-%d").date()
+                
+                # 1. Alerta D-10: Visão Geral Proativa 10 dias antes da viagem
+                delta_start = (start_dt - today_date).days
+                if delta_start == 10:
+                    alert_key = "D-10_poi_deep_dive"
+                    if alert_key not in trip.get("alerts_sent", []):
+                        pois = trip.get("points_of_interest", [])
+                        if pois:
+                            logger.info(f"🔍 D-10 Deep-Dive para {user_id} em {trip['destination']}")
+                            poi_list_str = ", ".join(pois)
+                            prompt = (
+                                f"O usuário vai viajar para {trip['destination']} em 10 dias. "
+                                f"No roteiro dele constam estes pontos de interesse: {poi_list_str}.\n\n"
+                                "Sua missão é fazer um Deep-Dive de Elite:\n"
+                                "1. Selecione os locais mais peculiares ou históricos (ex: minas, castelos, trilhas).\n"
+                                "2. Use a ferramenta `search_real_travel_tips` para pesquisar em sites oficiais (.gov ou turismo) o que DEVE ser explorado lá, horários críticos e segredos locais.\n"
+                                "3. Monte um guia formatado para WhatsApp chamado 'Dossiê de Exploração Antecipada'.\n"
+                                "4. Avise que você enviará um lembrete detalhado um dia antes da visita a cada local."
+                            )
+                            deep_dive_msg = agent.chat(user_input=prompt, thread_id=user_id)
+                            if deep_dive_msg:
+                                self.n8n_svc.enviar_resposta_usuario(target_user, f"🧐 *DOSSIÊ DE EXPLORAÇÃO (D-10)*\n\n{deep_dive_msg}")
+                                self.trip_svc.mark_alert_sent(trip["id"], alert_key)
+
+                # 2. Alerta D-1: Deep-Dive do POI da Visita de Amanhã
+                # Verificamos no RAG o que está planejado para amanhã
+                if -1 <= delta_start <= 30: # Viagem ativa ou próxima
+                    tomorrow_date = today_date + timedelta(days=1)
+                    tomorrow_str = tomorrow_date.strftime("%d/%m/%Y")
+                    
+                    # Evitar duplicar D-1 alerts
+                    alert_d1_key = f"D-1_poi_alert_{tomorrow_date.strftime('%Y%m%d')}"
+                    if alert_d1_key not in trip.get("alerts_sent", []):
+                        # Consultar RAG para ver se tem um POI marcado para amanhã
+                        tomorrow_poi_context = rag_svc.query(
+                            f"Quais pontos de interesse ou locais específicos serão visitados no dia {tomorrow_str}?",
+                            thread_id=user_id, k=3
+                        )
+                        
+                        if tomorrow_poi_context and "não" not in tomorrow_poi_context.lower() and len(tomorrow_poi_context) > 50:
+                            logger.info(f"🔍 D-1 Deep-Dive de POI para {user_id} amanhã ({tomorrow_str})")
+                            prompt_d1 = (
+                                f"O usuário visitará amanhã ({tomorrow_str}) o seguinte local: {tomorrow_poi_context}\n\n"
+                                "Sua missão é ser o Concierge de Véspera:\n"
+                                "1. Pesquise em fontes oficiais as condições atuais, o que não pode ser esquecido (ex: casaco, lanterna, água) e a 'Dica de Ouro' desse lugar.\n"
+                                "2. Monte uma mensagem curta, urgente e valiosa para o WhatsApp.\n"
+                                "3. Use a ferramenta de busca para garantir dados reais."
+                            )
+                            d1_msg = agent.chat(user_input=prompt_d1, thread_id=user_id)
+                            if d1_msg:
+                                self.n8n_svc.enviar_resposta_usuario(target_user, f"📍 *PREPARAÇÃO PARA AMANHÃ*\n\n{d1_msg}")
+                                self.trip_svc.mark_alert_sent(trip["id"], alert_d1_key)
+
+            except Exception as e:
+                logger.error(f"Erro no deep-dive de roteiro para trip {trip.get('id')}: {e}")

@@ -312,16 +312,19 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                     msg_admin = f"✅ Contato {guest_id} autorizado para a viagem '{success_trip_id}'!"
                     msg_guest = (
                         "🎉 *Seja muito bem-vindo ao Seven Assistant Travel - O Ápice da Consultoria de Viagens.*\n\n"
-                        "O Administrador acaba de autorizar seu acesso ao **projeto de assistência mais monumental da atualidade**. Eu não sou um robô comum; sou seu **Concierge de Elite**, projetado para ser seu cérebro, seus olhos e sua segurança 24h por dia. 🌍✈️🛡️\n\n"
-                        "📋 **O SEU ECOSSISTEMA DE VIAGEM:**\n\n"
+                        "O Administrador acaba de autorizar seu acesso ao **projeto de assistência mais monumental da atualidade**. Eu não sou um robô comum; sou seu **Concierge de Elite**, projetado para ser seu melhor companheiro de jornada. 🌍✈️🛡️\n\n"
+                        "📋 **O QUE EU FAÇO POR VOCÊ:**\n\n"
                         "🔹 **Dossiê Digital & Auditoria:** Me envie fotos ou PDFs de suas passagens, hotéis, seguros e aluguéis de carro. Eu leio, organizo e audito tudo. Se faltar uma noite de hotel ou um seguro obrigatório, eu te aviso proativamente.\n"
-                        "🔹 **Monitoramento Silencioso de Voos:** Você não precisa compartilhar sua localização para eu saber que você chegou. Eu monitoro seu voo em tempo real e, assim que você pousar, já te envio o guia para sua esteira de malas e transporte.\n"
-                        "🔹 **Segurança Ativa & Emergências:** Monitoro prefeituras e sites oficiais (.gov) para te alertar sobre desastres naturais ou riscos de segurança. Em caso de acidente ou emergência na estrada, aciono o socorro local imediatamente.\n"
-                        "🔹 **Descobertas Proativas (Hidden Gems):** Se você estiver caminhando e eu detectar um lugar icônico ou restaurante premiado na rua ao lado que não está no seu roteiro, eu te aviso na hora para você não perder nada.\n"
-                        "🔹 **Modo Parque & Eventos de Elite:** Tenho suporte especializado para **F1, Shows e Parques (Disney/Universal)**. Guio você até o portão correto, monitoro filas em tempo real e encontro facilidades (banheiros/comida) em locais lotados.\n"
-                        "🔹 **Proatividade Offline:** Se detectar que seu próximo trajeto passará por áreas sem sinal de internet, eu te envio os mapas offline para download antecipadamente.\n"
-                        "🔹 **Álbum de Família Privado:** Toda foto ou vídeo enviado aqui é salvo automaticamente na pasta da viagem no Google Drive do grupo.\n"
-                        "🔹 **Proteção de Dados e Equipamento:** Se alguém perder o celular, bastará outro membro dizer \"Assumir Robô\" para que eu transfira toda a inteligência para o novo número.\n\n"
+                        "🔹 **Deep-Dive de Destino:** Faço pesquisas profundas em sites oficiais sobre os lugares peculiares do seu roteiro. Te envio dicas exclusivas de exploração 10 dias antes da viagem e 1 dia antes da visita.\n"
+                        "🔹 **Consultoria & Roteiro:** Auxilio na montagem do seu itinerário, busco os melhores voos e garanto que você tenha a melhor experiência possível.\n"
+                        "🔹 **Radar de Ofertas:** Te aviso sobre promoções gastronômicas, oportunidades de compras e descontos exclusivos no seu destino.\n"
+                        "🔹 **Peculiaridades Locais:** Dicas sobre o que cada lugar tem de único, costumes e segredos que só um concierge de elite conhece.\n"
+                        "🔹 **Segurança Ativa & Emergências:** Monitoramento de desastres, acidentes e suporte imediato.\n"
+                        "🔹 **Descobertas Proativas (Hidden Gems):** Alertas sobre lugares famosos na 'rua de trás' que não estão no roteiro.\n"
+                        "🔹 **Modo Parque & Eventos:** Suporte total em F1, Shows e Parques (Disney/Universal).\n"
+                        "🔹 **Proatividade Offline:** Mapas antecipados para áreas sem sinal.\n"
+                        "🔹 **Álbum de Família Privado:** Organização automática de todas as mídias no Google Drive.\n"
+                        "🔹 **Proteção de Equipamento:** Protocolo para perda de celular.\n\n"
                         "---\n"
                         "🚀 **SUA JORNADA MONUMENTAL COMEÇA AGORA:**\n"
                         "1️⃣ *Quais são as datas exatas da sua viagem?*\n"
@@ -588,8 +591,9 @@ async def process_media_webhook(request: MediaRequest):
             if trip_match:
                 host_id = trip_match["host_user_id"]
                 share_msg = f"🔗 *Viagem em Grupo Detectada!*\nDeseja compartilhar seus documentos com `{host_id}`? Responda: *sim compartilhar*"
-                user_service.set_pending_trip_link(normalized_uid, host_id, trip_match["trip_id"], trip_match["destination"], trip_match["start_date"])
-                n8n.enviar_resposta_usuario(normalized_uid, share_msg, bypass_firewall=True)
+                is_first_prompt = user_service.set_pending_trip_link(normalized_uid, host_id, trip_match["trip_id"], trip_match["destination"], trip_match["start_date"])
+                if is_first_prompt:
+                    n8n.enviar_resposta_usuario(normalized_uid, share_msg, bypass_firewall=True)
         else:
             n8n = N8nService()
             error_msg = f"❌ *Falha ao processar:* {request.filename}\nErro: {result.get('error', 'Desconhecido')}"

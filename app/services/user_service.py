@@ -192,12 +192,44 @@ class UserService:
         admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
         pending = self.users.get(admin_number, {}).get("pending_requests", {})
         if uid in pending:
+            # Transferir push_name se houver
+            push_name = pending[uid].get("push_name")
+            if push_name and "name" not in self.users[uid]:
+                self.users[uid]["name"] = push_name
             del pending[uid]
             self.users[admin_number]["pending_requests"] = pending
             
         self._save_users()
         logger.info(f"✅ Usuário {uid} autorizado para a viagem {trip_id} por {admin_id}")
         return trip_id
+
+    def link_user_to_trip(self, user_id: str, trip_id: str):
+        """Vincula um usuário diretamente a uma viagem (compartilhamento)."""
+        uid = self.normalize_phone(user_id)
+        if uid not in self.users:
+            self.users[uid] = {
+                "role": "guest",
+                "authorized_trips": [],
+                "active_trip_id": None,
+                "created_at": datetime.now().isoformat()
+            }
+        
+        if trip_id not in self.users[uid]["authorized_trips"]:
+            self.users[uid]["authorized_trips"].append(trip_id)
+        
+        self.users[uid]["active_trip_id"] = trip_id
+        
+        # Vincular documentos retroativos
+        try:
+            from app.services.rag_service import RAGService
+            rag = RAGService()
+            rag.assign_trip_to_user_documents(uid, trip_id)
+        except Exception as e:
+            logger.error(f"⚠️ Falha ao vincular documentos retroativos para {uid}: {e}")
+            
+        self._save_users()
+        logger.info(f"🔗 Usuário {uid} vinculado à trip {trip_id}")
+        return True
 
     def register_access_request(self, guest_id: str, push_name: str = "Desconhecido", suggested_trip_id: str = None) -> bool:
         """Registra uma tentativa de acesso não autorizada. Retorna True se o admin deve ser notificado agora (throttle)."""
@@ -241,8 +273,11 @@ class UserService:
         
         return should_notify
 
-    def set_pending_trip_link(self, guest_id: str, host_user_id: str, trip_id: str, destination: str, start_date: str):
-        """Salva uma proposta de vinculação de viagem aguardando confirmação do guest."""
+    def set_pending_trip_link(self, guest_id: str, host_user_id: str, trip_id: str, destination: str, start_date: str) -> bool:
+        """
+        Salva uma proposta de vinculação de viagem e retorna True se for a primeira vez que pergunta sobre esta trip.
+        Isso evita perguntar para todo documento enviado.
+        """
         uid = self.normalize_phone(guest_id)
         if uid not in self.users:
             self.users[uid] = {
@@ -251,6 +286,14 @@ class UserService:
                 "active_trip_id": None,
                 "created_at": datetime.now().isoformat()
             }
+            
+        asked_trips = self.users[uid].get("asked_trip_links", [])
+        if trip_id in asked_trips:
+            return False # Já perguntou
+            
+        asked_trips.append(trip_id)
+        self.users[uid]["asked_trip_links"] = asked_trips
+            
         self.users[uid]["pending_trip_link"] = {
             "host_user_id": self.normalize_phone(host_user_id),
             "trip_id": trip_id,
@@ -260,6 +303,7 @@ class UserService:
         }
         self._save_users()
         logger.info(f"⏳ Proposta de vinculação salva para {uid} → trip {trip_id}")
+        return True
 
     def get_pending_trip_link(self, user_id: str) -> dict:
         """Retorna a proposta de vinculação pendente para o usuário, se houver."""

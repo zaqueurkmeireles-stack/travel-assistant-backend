@@ -496,15 +496,69 @@ def manage_trip_sharing(action: str, partner_whatsapp: str, confirmation_code: s
     """
     user_id = config.get("configurable", {}).get("thread_id", "default")
     from app.services.trip_service import TripService
+    from app.services.user_service import UserService
     trip_svc = TripService()
+    user_svc = UserService()
     
     if action == "accept":
-        trip_svc.request_trip_sharing(user_id, confirmation_code, partner_whatsapp)
-        # Recíproco
-        trip_svc.request_trip_sharing(partner_whatsapp, confirmation_code, user_id)
-        return f"✅ Viagem compartilhada com sucesso! Agora você e {partner_whatsapp} podem acessar os documentos um do outro para esta viagem."
+        # Encontrar a trip associada ao código
+        partner_trip_id = None
+        for trip in trip_svc.trips:
+            if trip.get("confirmation_code") == confirmation_code:
+                partner_trip_id = trip["id"]
+                break
+        
+        if partner_trip_id:
+            user_svc.link_user_to_trip(user_id, partner_trip_id)
+            trip_svc.request_trip_sharing(user_id, confirmation_code, partner_whatsapp)
+            # Recíproco
+            trip_svc.request_trip_sharing(partner_whatsapp, confirmation_code, user_id)
+            return f"✅ Viagem compartilhada com sucesso! Agora você e {partner_whatsapp} compartilham o mesmo dossiê e RAG para esta viagem."
+        return "Não consegui encontrar a viagem original para compartilhar."
     
     return f"Solicitação enviada. Aguardando {partner_whatsapp} aceitar."
+
+@tool
+def link_with_partner_trip(partner_phone: str, config: RunnableConfig) -> str:
+    """
+    Vincula o usuário atual à viagem de um parceiro (ex: esposa/marido) para compartilhar o RAG.
+    Use quando o usuário disser 'estou viajando com minha esposa' ou fornecer o número do parceiro.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    from app.services.trip_service import TripService
+    user_svc = UserService()
+    trip_svc = TripService()
+    
+    partner_uid = user_svc.normalize_phone(partner_phone)
+    partner_trip_id = user_svc.get_active_trip(partner_uid)
+    
+    if not partner_trip_id:
+        return f"Não encontrei nenhuma viagem ativa vinculada ao número {partner_phone}. Peça para seu parceiro enviar a passagem primeiro!"
+        
+    user_svc.link_user_to_trip(user_id, partner_trip_id)
+    return f"✅ Sucesso! Agora você está vinculado à mesma viagem de {partner_phone}. Seus documentos e informações agora são compartilhados no mesmo cérebro (RAG)."
+
+@tool
+def invite_family_member(phone_number: str, config: RunnableConfig) -> str:
+    """
+    Autoriza e convida um familiar (ex: esposa/marido) para compartilhar os documentos de viagem.
+    Use quando o usuário disser 'quero adicionar minha esposa' ou fornecer o número de alguém que viaja junto.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    user_svc = UserService()
+    
+    active_trip_id = user_svc.get_active_trip(user_id)
+    if not active_trip_id:
+        return "Você precisa ter uma viagem ativa e documentos enviados antes de convidar alguém. Envie sua passagem primeiro!"
+        
+    partner_uid = user_svc.normalize_phone(phone_number)
+    
+    # Autoriza o convidado
+    user_svc.authorize_guest(user_id, partner_uid, active_trip_id)
+    
+    return f"✅ Convite processado! O número {phone_number} foi autorizado para acessar o RAG compartilhado da sua viagem para {active_trip_id.split('_')[1]}. Peça para {phone_number} mandar um 'Oi' para o robô!"
 
 @tool
 def configure_proactive_frequency(level: str, config: RunnableConfig) -> str:
@@ -551,5 +605,7 @@ ALL_TOOLS = [
     get_event_venue_details,
     search_government_notices,
     configure_proactive_frequency,
-    confirm_document_replacement
+    confirm_document_replacement,
+    link_with_partner_trip,
+    invite_family_member
 ]
