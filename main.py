@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from loguru import logger
 import uvicorn
 import os
@@ -74,6 +76,14 @@ async def health_check():
 
 # Registrar Rotas da API
 app.include_router(api_router, prefix="/api", tags=["API"])
+
+# Setup Jinja2Templates
+templates = Jinja2Templates(directory="app/templates")
+
+@app.get("/dashboard", response_class=HTMLResponse, tags=["UI"])
+async def dashboard(request: Request):
+    """Retorna o Dashboard da interface visual"""
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 # Dependências Globais / Inicialização Tardia
 def get_agent():
