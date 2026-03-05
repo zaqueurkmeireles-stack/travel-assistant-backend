@@ -15,6 +15,7 @@ from app.agents.orchestrator import TravelAgent
 from app.services.document_ingestor import DocumentIngestor
 from app.services.n8n_service import N8nService
 from app.config import settings
+import httpx
 
 router = APIRouter()
 
@@ -647,3 +648,42 @@ async def process_location_webhook(request: LocationRequest, agent: TravelAgent)
             n8n.enviar_resposta_usuario(request.user_id, response)
     except Exception as e:
         logger.error(f"❌ Erro no Geoguia background: {e}")
+
+class DashboardActionRequest(BaseModel):
+    action_type: str
+    user_id: str
+    details: Optional[dict] = {}
+
+@router.post("/dashboard/action", tags=["Dashboard"])
+async def dashboard_action(request: DashboardActionRequest):
+    """
+    Proxy endpoint for the dashboard to trigger actions on the n8n webhook
+    without exposing the URL to the frontend.
+    """
+    webhook_url = settings.N8N_DASHBOARD_WEBHOOK_URL
+    if not webhook_url:
+        logger.warning("N8N_DASHBOARD_WEBHOOK_URL not configured. Unable to process dashboard action.")
+        # Se não estiver configurado para testes, a gente retorna 200 pra simular sucesso pro frontend
+        return {"success": True, "message": "Simulated action (Webhook URL not set)", "action": request.action_type}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                webhook_url,
+                json={
+                    "action": request.action_type,
+                    "user_id": request.user_id,
+                    "details": request.details,
+                    "source": "dashboard_ui"
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            logger.info(f"Dashboard action '{request.action_type}' triggered successfully to n8n.")
+            return {"success": True, "message": "Action triggered successfully", "n8n_response": response.json() if response.content else {}}
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error from n8n for dashboard action: {e}")
+        return JSONResponse(status_code=e.response.status_code, content={"success": False, "error": "Failed to trigger action upstream."})
+    except Exception as e:
+        logger.error(f"Error triggering dashboard action: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})

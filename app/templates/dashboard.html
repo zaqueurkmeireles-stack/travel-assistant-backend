@@ -102,8 +102,8 @@
                         </span>
                     </div>
                 </div>
-                <button class="text-background-dark px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-                    Explore
+                <button id="btn-explore" data-action="explore_destination" class="dashboard-action-btn text-background-dark px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
+                    <span>Explore</span>
                     <span class="material-symbols-outlined text-sm">arrow_forward</span>
                 </button>
             </div>
@@ -117,7 +117,7 @@
     </h3>
     <div class="grid grid-cols-1 gap-4">
         <!-- Daily Itinerary -->
-        <div class="glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
+        <div id="card-itinerary" data-action="daily_itinerary" class="dashboard-action-btn glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 flex items-center justify-center rounded-lg bg-surface-dark border border-neon-blue/30 text-primary group-hover:border-neon-blue transition-all duration-300">
                     <span class="material-symbols-outlined text-[28px] text-primary">calendar_today</span>
@@ -131,7 +131,7 @@
         </div>
 
         <!-- Exclusive Vouchers -->
-        <div class="glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
+        <div id="card-vouchers" data-action="exclusive_vouchers" class="dashboard-action-btn glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 flex items-center justify-center rounded-lg bg-surface-dark border border-neon-blue/30 text-primary group-hover:border-neon-blue transition-all duration-300">
                     <span class="material-symbols-outlined text-[28px] text-primary">confirmation_number</span>
@@ -145,7 +145,7 @@
         </div>
 
         <!-- Chat with Concierge -->
-        <div class="glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
+        <div id="card-chat" data-action="concierge_chat" class="dashboard-action-btn glass-card rounded-xl p-5 flex items-center justify-between group cursor-pointer hover:bg-surface-dark transition-all">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 flex items-center justify-center rounded-lg bg-surface-dark border border-neon-blue/30 text-primary group-hover:border-neon-blue transition-all duration-300">
                     <span class="material-symbols-outlined text-[28px] text-primary">chat_bubble</span>
@@ -200,5 +200,79 @@
         </a>
     </div>
 </nav>
+
+<!-- JavaScript Logic for Connecting Actions to Backend Proxy -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Obter o user_id real ou usar um de teste se não disponível via query param/token
+        // Exemplo: /dashboard?user_id=123456789
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id') || 'demo_user';
+
+        const actionButtons = document.querySelectorAll('.dashboard-action-btn');
+
+        actionButtons.forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.preventDefault();
+
+                const actionType = button.getAttribute('data-action');
+                if (!actionType) return;
+
+                // Simple visual feedback: show loading state
+                const originalContent = button.innerHTML;
+                const originalPointerEvents = button.style.pointerEvents;
+                const originalOpacity = button.style.opacity;
+
+                button.style.pointerEvents = 'none';
+                button.style.opacity = '0.7';
+
+                if(button.tagName.toLowerCase() === 'button') {
+                    button.innerHTML = '<span class="material-symbols-outlined animate-spin">autorenew</span><span>Wait...</span>';
+                }
+
+                try {
+                    const response = await fetch('/api/dashboard/action', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            action_type: actionType,
+                            user_id: userId,
+                            details: {
+                                timestamp: new Date().toISOString()
+                            }
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Success visual feedback (temporarily turn border/bg green-ish or flash)
+                        button.style.transition = 'all 0.3s';
+                        const oldBorderColor = button.style.borderColor;
+                        button.style.borderColor = '#00ff88';
+                        setTimeout(() => {
+                            button.style.borderColor = oldBorderColor;
+                        }, 1000);
+                    } else {
+                        console.error('Action failed:', data.error);
+                        alert('Failed to trigger action. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error triggering action:', error);
+                    alert('Network error. Please check your connection.');
+                } finally {
+                    // Restore original state
+                    button.style.pointerEvents = originalPointerEvents;
+                    button.style.opacity = originalOpacity;
+                    if(button.tagName.toLowerCase() === 'button') {
+                        button.innerHTML = originalContent;
+                    }
+                }
+            });
+        });
+    });
+</script>
 </body>
 </html>

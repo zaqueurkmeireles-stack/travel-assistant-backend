@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     # N8N E AUTOMAÇÃO (NOSSO FLUXO PRINCIPAL)
     # ============================================================
     N8N_WEBHOOK_URL_OUTPUT: str = ""
+    N8N_DASHBOARD_WEBHOOK_URL: str = ""
     ADMIN_WHATSAPP_NUMBER: str = ""
     BOT_WHATSAPP_NUMBER: str = ""
 
