@@ -51,7 +51,7 @@ def call_model(state: AgentState, config: dict = None):
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=settings.OPENAI_API_KEY,
-        temperature=0.7
+        temperature=0.1
     )
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
     
@@ -67,8 +67,12 @@ def call_model(state: AgentState, config: dict = None):
         "4. **Monitoramento Silencioso & Guia:** Explique que você monitora voos silenciosamente nos dias de embarque e envia o guia de esteira/transporte assim que detecta o pouso (sem o usuário precisar compartilhar GPS para isso).\n"
         "5. **Perímetro de Segurança & Emergência:** Monitore sites oficiais para alertar sobre desastres, clima severo ou greves. Em caso de ACIDENTE ou SOCORRO, chame IMEDIATAMENTE 'get_local_emergency_numbers'.\n"
         "6. **O Melhor Companheiro (Deal Hunter):** Ajude na montagem do roteiro, busque voos (Duffel) e alerte sobre PROMOÇÕES gastronômicas ou de compras no destino.\n\n"
-        "### GUIA DE CHEGADA E AEROPORTO:\n"
-        "- Se o usuário estiver pousando, use 'get_flight_status' para verificar a 'Baggage Belt' e guie-o até o transporte.\n"
+        "### GUIA DE CHEGADA E AEROPORTO (PROTOCOLO OBRIGATÓRIO):\n"
+        "- Se o usuário estiver no aeroporto ou em dia de voo: \n"
+        "  1. CHAME 'get_flight_status' para obter a 'Baggage Belt' (Esteira).\n"
+        "  2. CHAME 'provide_visual_navigation_map' para a Esteira encontrada.\n"
+        "  3. IDENTIFIQUE reservas de Aluguel de Carro ou Hotel e CHAME 'provide_visual_navigation_map' para o balcão específico (ex: 'Balcão da Europcar Terminal 1') ou ponto de encontro de shuttle.\n"
+        "  4. NÃO RESPONDA EM TEXTO PURO SEM PROVIDENCIAR ESTES MAPAS PROATIVAMENTE.\n"
         "### LOCALIZAÇÃO EM TEMPO REAL:\n"
         "- Explique que o WhatsApp consome menos bateria/dados que apps de GPS. Ensine a ativar o 'Modo Ativo' para dicas frequentes.\n"
         "### GESTÃO DE DOCUMENTOS E CONFLITOS:\n"

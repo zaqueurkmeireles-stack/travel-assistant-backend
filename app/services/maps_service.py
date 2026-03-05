@@ -16,6 +16,31 @@ class GoogleMapsService:
         self.base_url = "https://maps.googleapis.com/maps/api"
         logger.info("✅ Google Maps Service inicializado")
     
+    def geocode(self, address: str) -> Optional[Dict]:
+        """Converte endereço em coordenadas (lat, lng)"""
+        try:
+            url = f"{self.base_url}/geocode/json"
+            params = {
+                "address": address,
+                "key": self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=15)
+            data = response.json()
+            
+            if data["status"] == "OK":
+                location = data["results"][0]["geometry"]["location"]
+                return {
+                    "lat": location["lat"],
+                    "lng": location["lng"],
+                    "formatted_address": data["results"][0]["formatted_address"]
+                }
+            return None
+                
+        except Exception as e:
+            logger.error(f"Erro no geocode: {e}")
+            return None
+
     def reverse_geocode(self, lat: float, lng: float) -> str:
         """Converte coordenadas em endereço ou nome de local"""
         try:

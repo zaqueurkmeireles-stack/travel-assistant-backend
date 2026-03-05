@@ -68,9 +68,10 @@ class FlightsService:
             "flight_number": flight_number,
             "airline": "LATAM Airlines",
             "departure_airport": "GRU",
-            "arrival_airport": "GIG",
-            "status": "On Time",
-            "departure_time": "2026-04-13T10:00:00",
-            "arrival_time": "2026-04-13T11:30:00",
+            "arrival_airport": "LIS",
+            "status": "Arrived",
+            "departure_time": "2026-04-10T00:00:00",
+            "arrival_time": "2026-04-10T06:00:00",
+            "baggage_belt": "Esteira 4",
             "note": "Dados simulados"
         }

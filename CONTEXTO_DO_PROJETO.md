@@ -36,8 +36,12 @@ O sistema não apenas responde perguntas, mas **antecipa necessidades**. Ele atu
 - **Função:** Evitar gafes culturais e problemas legais baseado na geolocalização.
 - **Exemplo:** *"Lembrete cultural: aqui não se pode beber na rua e é proibido fazer barulho após as 22h."*
 
-### 3.5. Agente de Utilidades e Sobrevivência
-- **Função:** Indicação de chips internacionais (eSIMs), conversão de moedas por foto e tradução de emergência.
+### 3.6. Funcionalidades de Elite (V1.1 - Implementadas)
+- **Match Inteligente:** O sistema detecta automaticamente sobreposição de viagens entre usuários (mesmo destino e data) e sugere a unificação do RAG para um planejamento compartilhado.
+- **Autorização Passiva:** Novos usuários entram em uma lista de espera (`unauthorized`) e o administrador pode liberá-los com um simples comando ("sim [n]").
+- **Micro-Navegação Proativa:** Ao detectar o pouso (Voo), o robô informa silenciosamente a esteira de bagagem e fornece mapas visuais e links para o balcão de aluguel de carro ou shuttle, sem que o usuário precise perguntar.
+- **Dossiê Unificado:** Suporte a múltiplos passageiros no mesmo ID de viagem, permitindo que todos vejam os documentos uns dos outros de forma segura.
+- **Gestão de Conflitos Humana:** O robô nunca descarta documentos sem perguntar. Se houver duplicidade ou irrelevância, ele solicita confirmação do usuário ("sim substituir" ou "sim incluir").
 
 ## 4. APIs e Integrações Necessárias (V1.0)
 - **Voos:** FlightAware API ou AviationStack.

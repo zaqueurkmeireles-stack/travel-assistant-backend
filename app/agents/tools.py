@@ -452,6 +452,7 @@ def provide_visual_navigation_map(place_description: str, config: RunnableConfig
     Gera um mapa visual e link de navegação para um local específico (ex: 'Esteira de Bagagem 4', 'Hertz Car Rental Terminal 1').
     Use quando o usuário estiver perdido ou precisar chegar a um ponto específico da viagem.
     """
+    logger.info(f"🗺️ Tool: Gerando mapa de navegação para {place_description}")
     from app.services.maps_service import GoogleMapsService
     maps = GoogleMapsService()
     
