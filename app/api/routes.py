@@ -527,16 +527,21 @@ async def process_media_webhook(request: MediaRequest):
                 
                 conflict_msg = (
                     f"{conflict_text}\n\n"
-                    f"Deseja substituir pelo novo arquivo (*{filename}*)?\nResponda: *sim substituir*"
+                    f"Deseja substituir pelo novo arquivo (*{filename}*)?\n"
+                    f"Responda: *sim substituir* ou *não*"
                 )
-                n8n.enviar_resposta_usuario(normalized_uid, conflict_msg)
+                n8n.enviar_resposta_usuario(normalized_uid, conflict_msg, bypass_firewall=True)
                 return
 
             # 🛡️ RELEVÂNCIA
             is_travel = result.get("is_travel_content", True)
             if not is_travel or result.get("status") == "irrelevant":
                 n8n = N8nService()
-                warning_msg = (f"li aqui esse documento (*{request.filename}*) e vi que não possui relação direta com a viagem, tem certeza que quer incluir?\n\nResponda: *sim incluir*")
+                warning_msg = (
+                    f"🤖 Analisei aqui esse documento (*{request.filename}*) e vi que ele não possui relação clara com a viagem atual.\n\n"
+                    f"Tem certeza que quer incluir no seu dossiê?\n"
+                    f"Responda: *sim incluir* ou *não*"
+                )
                 user_service.set_pending_irrelevancy(normalized_uid, {
                     "filename": result.get("filename") or request.filename,
                     "document_type": result.get("document_type", "documento"),
@@ -544,7 +549,7 @@ async def process_media_webhook(request: MediaRequest):
                     "mimetype": result.get("mimetype"), "text": result.get("text"),
                     "metadata": result.get("metadata", {})
                 })
-                n8n.enviar_resposta_usuario(normalized_uid, warning_msg)
+                n8n.enviar_resposta_usuario(normalized_uid, warning_msg, bypass_firewall=True)
                 return
 
             # 🔑 CONFIRMAÇÃO + GAP ANALYSIS

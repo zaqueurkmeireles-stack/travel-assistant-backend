@@ -257,6 +257,54 @@ def confirm_document_replacement(config: RunnableConfig) -> str:
     return f"✅ Documento '{pending['filename']}' substituído com sucesso para o passageiro {traveler}!"
 
 @tool
+def confirm_irrelevancy_inclusion(config: RunnableConfig) -> str:
+    """
+    Confirma a inclusão de um documento que foi inicialmente marcado como irrelevante.
+    Chame quando o usuário responder 'sim', 'pode incluir' ou 'tenho certeza'.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    user_svc = UserService()
+    
+    pending = user_svc.get_pending_irrelevancy(thread_id)
+    if not pending:
+        return "Não encontrei nenhum documento irrelevante pendente de inclusão."
+    
+    from app.services.rag_service import RAGService
+    rag = RAGService()
+    
+    text = pending.get("text")
+    metadata = pending.get("metadata")
+    
+    # Chunking manual se for muito grande
+    chunk_size = 4000
+    overlap = 200
+    if len(text) > chunk_size:
+        for i in range(0, len(text), chunk_size - overlap):
+            chunk = text[i:i + chunk_size]
+            rag.add_document(chunk, metadata)
+    else:
+        rag.add_document(text, metadata)
+    
+    user_svc.clear_pending_irrelevancy(thread_id)
+    return f"✅ Documento '{pending.get('filename', 'documento')}' incluído no dossiê de viagem com sucesso!"
+
+@tool
+def discard_pending_action(config: RunnableConfig) -> str:
+    """
+    Descarta qualquer ação pendente de substituição ou inclusão de documento irrelevante.
+    Chame quando o usuário responder 'não', 'cancela', 'esquece' ou similar.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    user_svc = UserService()
+    
+    user_svc.clear_pending_substitution(thread_id)
+    user_svc.clear_pending_irrelevancy(thread_id)
+    
+    return "Ação cancelada. O documento anterior foi mantido ou a nova inclusão foi descartada."
+
+@tool
 def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
     """
     Busca informações em documentos pessoais de viagem (passagens, hotéis, seguros) 
@@ -606,6 +654,8 @@ ALL_TOOLS = [
     search_government_notices,
     configure_proactive_frequency,
     confirm_document_replacement,
+    confirm_irrelevancy_inclusion,
+    discard_pending_action,
     link_with_partner_trip,
     invite_family_member
 ]

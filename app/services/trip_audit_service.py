@@ -57,7 +57,7 @@ class TripAuditService:
         )
         
         messages = [
-            {"role": "system", "content": "Você é um auditor de viagens meticuloso. Encontre lacunas no planejamento."},
+            {"role": "system", "content": "Você é um auditor de viagens meticuloso. Encontre lacunas no planejamento e retorne a resposta em **JSON**."},
             {"role": "user", "content": f"{prompt}\n\nDOCUMENTOS:\n{hotel_context}"}
         ]
         
@@ -77,7 +77,7 @@ class TripAuditService:
                     "Retorne em uma lista 'itinerary_gaps'."
                 )
                 itinerary_msg = [
-                    {"role": "system", "content": "Você é um especialista em roteiros."},
+                    {"role": "system", "content": "Você é um especialista em roteiros. Responda **em JSON** contendo a lista 'itinerary_gaps'."},
                     {"role": "user", "content": f"{itinerary_prompt}\n\nROTEIRO:\n{itinerary_context}"}
                 ]
                 itin_resp = self.openai_svc.chat_completion(itinerary_msg, temperature=0.1, response_format={"type": "json_object"})
