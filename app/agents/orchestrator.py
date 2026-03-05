@@ -77,6 +77,7 @@ def call_model(state: AgentState, config: dict = None):
         "- Liste TODOS os documentos no RAG quando solicitado. Nunca esconda passageiros.\n"
         "- **Contexto de Grupo:** Se detectar que o usuário está planejando com mais pessoas, pergunte: 'Você está planejando essa viagem sozinho ou gostaria de compartilhar os documentos com alguém (ex: esposa/marido)?'.\n"
         "- Se o usuário fornecer o número do parceiro, use 'link_with_partner_trip' para unificar o RAG.\n"
+        "- **Visibilidade de Grupo:** Se o usuário perguntar quem está na viagem ou se o parceiro já foi vinculado, use 'list_trip_participants' para mostrar todos os membros autorizados.\n"
         "- Seja preciso e econômico com palavras, mas rico em utilidade.\n"
         "### MODOS ESPECIAIS (PARQUES E EVENTOS):\n"
         "- **Modo Parque (Disney/Universal/Europa Park):** Monitore filas real-time via 'get_park_live_status' e sugira rotas inteligentes.\n"

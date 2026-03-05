@@ -625,6 +625,32 @@ def configure_proactive_frequency(level: str, config: RunnableConfig) -> str:
         return f"✅ Entendido! No 'Modo Ativo', enviarei dicas de gastronomia e atrações a cada {freq_desc}."
     return "Não consegui alterar a frequência. Verifique se você tem uma viagem ativa registrada."
 
+@tool
+def list_trip_participants(config: RunnableConfig) -> str:
+    """
+    Lista todos os participantes que compartilham o mesmo ID de viagem atual.
+    Use quando o usuário perguntar 'quem está na minha viagem?', 'quem mais está no grupo?' ou quiser saber se o parceiro já foi vinculado.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    user_svc = UserService()
+    
+    active_trip_id = user_svc.get_active_trip(user_id)
+    if not active_trip_id:
+        return "Você ainda não tem uma viagem ativa. Envie sua primeira passagem para começarmos!"
+        
+    participants = []
+    for uid, data in user_svc.users.items():
+        if data.get("active_trip_id") == active_trip_id:
+            name = data.get("name", uid)
+            role = data.get("role", "guest")
+            participants.append(f"- {name} ({role})")
+            
+    if not participants:
+        return "Não encontrei outros participantes vinculados a esta viagem."
+        
+    return f"Participantes vinculados à viagem para {active_trip_id.split('_')[1] if '_' in active_trip_id else active_trip_id}:\n" + "\n".join(participants)
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -657,5 +683,6 @@ ALL_TOOLS = [
     confirm_irrelevancy_inclusion,
     discard_pending_action,
     link_with_partner_trip,
-    invite_family_member
+    invite_family_member,
+    list_trip_participants
 ]
