@@ -315,22 +315,16 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                         "🎉 *Seja muito bem-vindo ao Seven Assistant Travel - O Ápice da Consultoria de Viagens.*\n\n"
                         "O Administrador acaba de autorizar seu acesso ao **projeto de assistência mais monumental da atualidade**. Eu não sou um robô comum; sou seu **Concierge de Elite**, projetado para ser seu melhor companheiro de jornada. 🌍✈️🛡️\n\n"
                         "📋 **O QUE EU FAÇO POR VOCÊ:**\n\n"
-                        "🔹 **Dossiê Digital & Auditoria:** Me envie fotos ou PDFs de suas passagens, hotéis, seguros e aluguéis de carro. Eu leio, organizo e audito tudo. Se faltar uma noite de hotel ou um seguro obrigatório, eu te aviso proativamente.\n"
-                        "🔹 **Deep-Dive de Destino:** Faço pesquisas profundas em sites oficiais sobre os lugares peculiares do seu roteiro. Te envio dicas exclusivas de exploração 10 dias antes da viagem e 1 dia antes da visita.\n"
-                        "🔹 **Consultoria & Roteiro:** Auxilio na montagem do seu itinerário, busco os melhores voos e garanto que você tenha a melhor experiência possível.\n"
-                        "🔹 **Radar de Ofertas:** Te aviso sobre promoções gastronômicas, oportunidades de compras e descontos exclusivos no seu destino.\n"
-                        "🔹 **Peculiaridades Locais:** Dicas sobre o que cada lugar tem de único, costumes e segredos que só um concierge de elite conhece.\n"
-                        "🔹 **Segurança Ativa & Emergências:** Monitoramento de desastres, acidentes e suporte imediato.\n"
-                        "🔹 **Descobertas Proativas (Hidden Gems):** Alertas sobre lugares famosos na 'rua de trás' que não estão no roteiro.\n"
-                        "🔹 **Modo Parque & Eventos:** Suporte total em F1, Shows e Parques (Disney/Universal).\n"
-                        "🔹 **Proatividade Offline:** Mapas antecipados para áreas sem sinal.\n"
-                        "🔹 **Álbum de Família Privado:** Organização automática de todas as mídias no Google Drive.\n"
-                        "🔹 **Proteção de Equipamento:** Protocolo para perda de celular.\n\n"
-                        "---\n"
+                        "🔹 **Dossiê Digital & Auditoria:** Me envie fotos ou PDFs de suas passagens, hotéis, seguros e aluguéis de carro. Eu leio, organizo e audito tudo.\n"
+                        "🔹 **Deep-Dive de Destino:** Faço pesquisas profundas sobre os lugares peculiares do seu roteiro.\n"
+                        "🔹 **Consultoria & Roteiro:** Auxilio na montagem do seu itinerário e busco os melhores serviços.\n"
+                        "🔹 **Radar de Ofertas:** Te aviso sobre promoções e oportunidades exclusivas.\n\n"
                         "🚀 **SUA JORNADA MONUMENTAL COMEÇA AGORA:**\n"
                         "1️⃣ *Quais são as datas exatas da sua viagem?*\n"
                         "2️⃣ *Pode me enviar seu primeiro documento ou roteiro para eu começar a trabalhar?*"
                     )
+                    n8n.enviar_resposta_usuario(request.user_id, msg_admin, bypass_firewall=True)
+                    n8n.enviar_resposta_usuario(guest_id, msg_guest)
             return
                 
         elif role == "admin" and message_str.lower().startswith("autorizar "):
