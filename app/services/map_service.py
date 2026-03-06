@@ -43,10 +43,11 @@ class InteractiveMapService:
         )
 
         try:
-            from langchain_core.messages import SystemMessage
-            # Usamos json_mode se o modelo suportar, mas para garantir, faremos parse
-            response = self.openai_svc.llm.invoke([SystemMessage(content=prompt)])
-            content = response.content
+            # Usamos o método robusto do OpenAIService para extrair os dados
+            content = self.openai_svc.analyze_text(
+                text=rag_text, 
+                system_prompt=prompt
+            )
             
             # Limpar formatação Markdown se houver
             if "```json" in content:
