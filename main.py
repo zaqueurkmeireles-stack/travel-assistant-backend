@@ -94,9 +94,34 @@ async def get_sw():
 templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/dashboard", response_class=HTMLResponse, tags=["UI"])
-async def dashboard(request: Request):
+async def dashboard(request: Request, user_id: str = None):
     """Retorna o Dashboard da interface visual"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    destination_name = "Nenhuma viagem detectada"
+    
+    if user_id:
+        try:
+            from app.services.user_service import UserService
+            from app.services.trip_service import TripService
+            user_svc = UserService()
+            trip_svc = TripService()
+            
+            # Normalizar número
+            clean_uid = user_svc.normalize_phone(user_id)
+            active_trip_id = user_svc.get_active_trip(clean_uid)
+            
+            if active_trip_id:
+                for trip in trip_svc.trips:
+                    if trip["id"] == active_trip_id:
+                        destination_name = trip.get("destination", active_trip_id)
+                        break
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados para o dashboard: {e}")
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "destination_name": destination_name,
+        "user_id": user_id
+    })
 
 @app.get("/test-upload", response_class=HTMLResponse, tags=["UI"])
 async def test_upload_page(request: Request):
