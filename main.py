@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 import uvicorn
@@ -77,6 +77,19 @@ async def health_check():
 # Registrar Rotas da API
 app.include_router(api_router, prefix="/api", tags=["API"])
 
+# Registrar Static Files (para manifest.json, sw.js e ícones)
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Rotas PWA de Nível Superior
+@app.get("/manifest.json", tags=["PWA"])
+async def get_manifest():
+    return FileResponse("app/static/manifest.json")
+
+@app.get("/sw.js", tags=["PWA"])
+async def get_sw():
+    return FileResponse("app/static/sw.js", media_type="application/javascript")
+
 # Setup Jinja2Templates
 templates = Jinja2Templates(directory="app/templates")
 
@@ -84,6 +97,11 @@ templates = Jinja2Templates(directory="app/templates")
 async def dashboard(request: Request):
     """Retorna o Dashboard da interface visual"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+@app.get("/test-upload", response_class=HTMLResponse, tags=["UI"])
+async def test_upload_page(request: Request):
+    """Página de teste para upload de documentos via Web"""
+    return templates.TemplateResponse("upload_test.html", {"request": request})
 
 # Dependências Globais / Inicialização Tardia
 def get_agent():
