@@ -199,9 +199,19 @@ class UserService:
             del pending[uid]
             self.users[admin_number]["pending_requests"] = pending
             
+        if admin_number in self.users: # Ensure admin exists before trying to access pending_requests
+            pending = self.users[admin_number].get("pending_requests", {})
+            if uid in pending:
+                # Transferir push_name se houver
+                push_name = pending[uid].get("push_name")
+                if push_name and "name" not in self.users[uid]:
+                    self.users[uid]["name"] = push_name
+                del pending[uid]
+                self.users[admin_number]["pending_requests"] = pending
+            
         self._save_users()
-        logger.info(f"✅ Usuário {uid} autorizado para a viagem {trip_id} por {admin_id}")
-        return trip_id
+        logger.info(f"✅ Usuário {uid} autorizado como guest (Trip: {trip_id if trip_id else 'Nenhuma'})")
+        return "authorized" if (trip_id or self.users[uid].get("active_trip_id")) else "isolated"
 
     def link_user_to_trip(self, user_id: str, trip_id: str):
         """Vincula um usuário diretamente a uma viagem (compartilhamento)."""

@@ -57,6 +57,20 @@ class GeolocationService:
         # Distância aproximada simples (haversine ou similar - aqui simplificado para MVP)
         distance = self._calculate_distance(lat, lng, dest_loc["lat"], dest_loc["lng"])
         
+        # 2.1. GUIA DE CHEGADA (Prioridade Máxima no Dia 0)
+        start_date_str = active_trip.get("start_date")
+        start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        
+        if start_dt == today and not active_trip.get("arrival_guide_sent", False):
+            if distance <= self.PROXIMITY_RADIUS_KM:
+                logger.info(f"🛬 CHEGADA DETECTADA em {dest_name} para {user_id}!")
+                guide = self._generate_intelligent_arrival_guide(dest_name, user_id)
+                if guide:
+                    active_trip["arrival_guide_sent"] = True
+                    active_trip["last_proactive_tip_at"] = datetime.now().isoformat()
+                    self.trip_svc._save_trips()
+                    return guide
+        
         # 3. Auditoria de Proximidade (Gaps e Recomendações)
         # Cooldown dinâmico: Padrão 6h (360m), mas pode ser 30-60m em 'Modo Ativo'
         cooldown_min = active_trip.get("proactive_cooldown_minutes", 360)

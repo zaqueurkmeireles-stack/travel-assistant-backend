@@ -330,11 +330,6 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                         "🚀 **SUA JORNADA MONUMENTAL COMEÇA AGORA:**\n"
                         "1️⃣ *Quais são as datas exatas da sua viagem?*\n"
                         "2️⃣ *Pode me enviar seu primeiro documento ou roteiro para eu começar a trabalhar?*"
-                    )
-                    n8n.enviar_resposta_usuario(guest_id, msg_guest, bypass_firewall=True)
-                    n8n.enviar_resposta_usuario(request.user_id, msg_admin, bypass_firewall=True)
-                else:
-                    n8n.enviar_resposta_usuario(request.user_id, "❌ Falha ao autorizar. Viagem ativa não encontrada.", bypass_firewall=True)
             return
                 
         elif role == "admin" and message_str.lower().startswith("autorizar "):
@@ -348,18 +343,48 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                 n8n.enviar_resposta_usuario(request.user_id, msg, bypass_firewall=True)
             return
 
+        # 1. Autorização e Onboarding
+        # user_service e role já estão definidos acima, mas a lógica de autorização
+        # para usuários não autorizados foi movida para este bloco.
+        # A variável 'role' já foi obtida no início da função.
+        
         if role == "unauthorized":
-            should_notify = user_service.register_access_request(request.user_id, request.push_name)
-            if should_notify:
-                n8n = N8nService()
-                admin_msg = (
-                    f"🚨 *Nova Solicitação de Acesso*\n\n"
-                    f"👤 Nome: {request.push_name}\n"
-                    f"📱 ID: {request.user_id}\n"
-                    f"💬 Mensagem: \"{request.message}\"\n\n"
-                    f"Envie *sim {request.user_id}* para autorizar."
-                )
-                n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
+            # Verificar se é o admin autorizando alguém
+            # (Lógica simplificada para autorizar via "sim [id]")
+            if request.user_id == settings.ADMIN_WHATSAPP_NUMBER and request.message.lower().startswith("sim"):
+                parts = request.message.split()
+                if len(parts) >= 2:
+                    target_id = parts[1]
+                    # NOVO: Autorização isolada por padrão (não vincula à trip do admin automaticamente)
+                    status = user_service.authorize_guest(target_id)
+                    
+                    n8n = N8nService()
+                    n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, f"✅ Usuário {target_id} autorizado com sucesso!")
+                    
+                    # Onboarding Criativo para o novo usuário
+                    if status == "isolated":
+                        welcome_msg = (
+                            "🌟 *Olá! Eu sou o Seven, seu Concierge Digital de Elite.*\n\n"
+                            "Fui autorizado a te ajudar com suas próximas aventuras! "
+                            "Para começarmos, me conte: **Para onde você vai viajar e em quais datas?**\n\n"
+                            "Assim que você me der esses detalhes, criarei um cofre de memória exclusivo "
+                            "para você e sua família. Depois, você poderá me enviar passagens, hotéis e ingressos "
+                            "que eu organizarei tudo para você.\n\n"
+                            "📍 *Dica:* O seu **roteiro** é o documento mais importante para eu ser seu guia perfeito!"
+                        )
+                        n8n.enviar_resposta_usuario(target_id, welcome_msg)
+            else:
+                # Se não for autorizado, avisar o admin
+                if request.user_id != settings.ADMIN_WHATSAPP_NUMBER:
+                    n8n = N8nService()
+                    admin_msg = (
+                        f"🚨 *Nova Solicitação de Acesso*\n\n"
+                        f"👤 Nome: {request.push_name}\n"
+                        f"📱 ID: {request.user_id}\n"
+                        f"💬 Mensagem: \"{request.message}\"\n\n"
+                        f"Envie *sim {request.user_id}* para autorizar."
+                    )
+                    n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
             return
 
         # Chamada pesada da IA

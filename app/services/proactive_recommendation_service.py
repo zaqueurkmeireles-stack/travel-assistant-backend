@@ -17,14 +17,21 @@ class ProactiveRecommendationService:
         self.maps_svc = GoogleMapsService()
         self.openai_svc = OpenAIService()
         self.search_svc = SearchService()
-        self.trip_svc = TripService()
+        # Removed: self.trip_svc = TripService()
         logger.info("✅ ProactiveRecommendationService inicializado")
+
+    def _safe_rating(self, rating: Any) -> float:
+        """Converte a avaliação para float, tratando possíveis erros e retornando 0.0 se inválido."""
+        try:
+            return float(rating)
+        except (ValueError, TypeError):
+            return 0.0
 
     def get_nearby_gems(self, lat: float, lng: float, user_id: str) -> List[Dict]:
         """Busca lugares de alta qualidade (restaurantes 4.5+, atrações 4.0+ e Shoppings) próximos ao usuário."""
         # 1. Buscar atrações turísticas
         attractions = self.maps_svc.find_nearby_places(lat, lng, place_type="tourist_attraction", radius=2000)
-        gems = [g for g in attractions if g.get("rating", 0) >= 4.0]
+        gems = [g for g in attractions if self._safe_rating(g.get("rating")) >= 4.0]
 
         # 2. Buscar restaurantes e cafés de elite (4.5+)
         food_places = self.maps_svc.find_nearby_places(lat, lng, place_type="restaurant", radius=1000)
@@ -39,14 +46,15 @@ class ProactiveRecommendationService:
         
         # Add Food
         for f in food_places:
-            if f["name"] not in seen_names and f.get("rating", 0) >= 4.5:
+            if f["name"] not in seen_names and self._safe_rating(f.get("rating")) >= 4.5:
                 f["is_elite_food"] = True
                 gems.append(f)
                 seen_names.add(f["name"])
         
         # Add Shopping
         for s in shopping:
-            if s["name"] not in seen_names and (s.get("rating", 0) >= 4.0 or "outlet" in s["name"].lower()):
+            rating = self._safe_rating(s.get("rating"))
+            if s["name"] not in seen_names and (rating >= 4.0 or "outlet" in s["name"].lower()):
                 s["is_shopping"] = True
                 gems.append(s)
                 seen_names.add(s["name"])
@@ -64,7 +72,9 @@ class ProactiveRecommendationService:
         
         # 3. Verificar se há crianças na viagem (usando RAG ou metadados da trip)
         has_kids = False
-        trip_id = self.trip_svc.get_active_trip(user_id)
+        from app.services.user_service import UserService # Import moved inside function
+        user_svc = UserService() # Instantiate UserService
+        trip_id = user_svc.get_active_trip(user_id) # Use UserService to get active trip
         if trip_id:
             # Tentar inferir do resumo da viagem ou metadados
             # Para o MVP, assumimos False a menos que o RAG diga o contrário em uma busca rápida
