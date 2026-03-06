@@ -91,7 +91,16 @@ async def get_sw():
     return FileResponse("app/static/sw.js", media_type="application/javascript")
 
 # Setup Jinja2Templates
-templates = Jinja2Templates(directory="app/templates")
+try:
+    from fastapi.templating import Jinja2Templates
+    templates = Jinja2Templates(directory="app/templates")
+except Exception as e:
+    logger.error(f"Erro ao instanciar Jinja2Templates: {e}")
+    # Fallback to prevent app crash if jinja is missing
+    class DummyTemplates:
+        def TemplateResponse(self, *args, **kwargs):
+            return HTMLResponse("<h1>Jinja2 não instalado ou com erro. Verifique logs.</h1>")
+    templates = DummyTemplates()
 
 @app.get("/dashboard", response_class=HTMLResponse, tags=["UI"])
 async def dashboard(request: Request, user_id: str = None):
