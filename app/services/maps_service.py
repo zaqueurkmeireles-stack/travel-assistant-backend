@@ -107,6 +107,25 @@ class GoogleMapsService:
         encoded_name = urllib.parse.quote(location_name)
         return f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
     
+    def get_multi_point_map_link(self, places: List[str]) -> str:
+        """Gera um link do Google Maps com múltiplos pontos de parada (Rota da viagem)"""
+        import urllib.parse
+        if not places:
+            return "https://www.google.com/maps"
+            
+        if len(places) == 1:
+            return self.get_location_map_link(places[0])
+            
+        origin = urllib.parse.quote(places[0])
+        destination = urllib.parse.quote(places[-1])
+        
+        waypoints_str = ""
+        if len(places) > 2:
+            waypoints = [urllib.parse.quote(p) for p in places[1:-1]]
+            waypoints_str = "&waypoints=" + "|".join(waypoints)
+            
+        return f"https://www.google.com/maps/dir/?api=1&origin={origin}&destination={destination}{waypoints_str}"
+    
     def get_directions(self, origin: str, destination: str, mode: str = "driving") -> Optional[Dict]:
         """Obtém direções entre dois pontos"""
         try:

@@ -475,6 +475,77 @@ def provide_visual_navigation_map(place_description: str, config: RunnableConfig
     )
 
 @tool
+def generate_interactive_trip_map(config: RunnableConfig) -> str:
+    """
+    Gera um mapa interativo completo da viagem atual do usuário, conectando todos os pontos de interesse (hotéis, eventos, aeroportos) em uma única rota.
+    Use IMEDIATAMENTE quando o usuário pedir "gerar mapa da viagem", "roteiro no mapa", ou algo similar.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    logger.info(f"🗺️ Tool: Gerando mapa interativo completo para {user_id}")
+    
+    try:
+        from app.services.user_service import UserService
+        from app.services.trip_service import TripService
+        from app.services.maps_service import GoogleMapsService
+        
+        user_svc = UserService()
+        trip_svc = TripService()
+        maps = GoogleMapsService()
+        
+        active_trip_id = user_svc.get_active_trip(user_id)
+        if not active_trip_id:
+            return "Nenhuma viagem ativa encontrada para gerar o mapa. Por favor, envie suas passagens ou vouchers primeiro."
+            
+        trip_data = None
+        for t in trip_svc.trips:
+            if t["id"] == active_trip_id:
+                trip_data = t
+                break
+                
+        if not trip_data:
+            return "Erro ao localizar os dados da viagem."
+            
+        # Coletar pontos (Evitar duplicadas preservando a ordem)
+        raw_places = []
+        if trip_data.get("destination"):
+            raw_places.append(trip_data["destination"])
+        
+        pois = trip_data.get("points_of_interest", [])
+        if isinstance(pois, list):
+            raw_places.extend(pois)
+            
+        if trip_data.get("venue"):
+            raw_places.append(trip_data["venue"])
+            
+        places = []
+        for p in raw_places:
+            if p and p not in places:
+                places.append(p)
+                
+        if len(places) <= 1:
+            dest = places[0] if places else 'o destino principal'
+            link = maps.get_location_map_link(dest)
+            return (
+                f"🗺️ **Mapa Interativo**\n\nNo momento, eu só identifiquei **{dest}** no seu cofre da viagem.\n"
+                f"🔗 [ABRIR NO GOOGLE MAPS]({link})\n\n"
+                f"Para eu criar um roteiro tracejado complexo conectando vários locais, por favor mande os vouchers dos hotéis e passeios!"
+            )
+            
+        link = maps.get_multi_point_map_link(places)
+        
+        return (
+            f"🗺️ **Mapa Interativo da sua Viagem ({trip_data.get('destination', 'Destino')})**\n\n"
+            f"Conectei os seguintes pontos do seu itinerário em uma rota interativa:\n"
+            f"• " + "\n• ".join(places) + "\n\n"
+            f"🔗 [ABRIR ROTEIRO COMPLETO NO GOOGLE MAPS]({link})\n\n"
+            f"💡 **Dica da IA:** Este mapa foi arquitetado com base nas extrações do seu cofre virtual. Quanto mais documentos você me enviar, mais complexo e rico ele ficará!"
+        )
+    except Exception as e:
+        logger.error(f"Erro ao gerar mapa completo: {e}")
+        return "Tive dificuldades técnicas para desenhar o roteiro completo no momento."
+
+
+@tool
 def get_local_emergency_numbers(country: str) -> str:
     """
     Fornece os números de emergência locais (Polícia, Ambulância, Bombeiros) para o país informado.
@@ -729,5 +800,6 @@ ALL_TOOLS = [
     link_with_partner_trip,
     invite_family_member,
     list_trip_participants,
-    manual_create_trip
+    manual_create_trip,
+    generate_interactive_trip_map
 ]
