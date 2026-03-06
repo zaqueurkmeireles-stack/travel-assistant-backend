@@ -652,6 +652,49 @@ def list_trip_participants(config: RunnableConfig) -> str:
         
     return f"Participantes vinculados à viagem para {active_trip_id.split('_')[1] if '_' in active_trip_id else active_trip_id}:\n" + "\n".join(participants)
 
+@tool
+def manual_create_trip(destination: str, start_date: str, config: RunnableConfig, end_date: str = None) -> str:
+    """
+    Cria uma nova viagem manualmente para o usuário quando ele informar o destino e as datas.
+    Use durante o onboarding de novos usuários isolados quando eles responderem para onde e quando vão viajar.
+    """
+    user_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.trip_service import TripService
+    from app.services.user_service import UserService
+    import datetime
+    
+    trip_svc = TripService()
+    user_svc = UserService()
+    
+    if not start_date:
+        start_date = datetime.date.today().strftime("%Y-%m-%d")
+        
+    # Formato do ID: YYYY-MM_Destino
+    try:
+        dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        month_str = dt.strftime("%Y-%m")
+    except:
+        month_str = datetime.date.today().strftime("%Y-%m")
+        
+    trip_id = f"{month_str}_{destination.replace(' ', '')}"
+    
+    # Register trip
+    trip_data = {
+        "id": trip_id,
+        "user_id": user_id,
+        "destination": destination,
+        "start_date": start_date,
+        "participants": [user_id],
+        "status": "planned"
+    }
+    trip_svc.trips.append(trip_data)
+    trip_svc._save_trips()
+    
+    # Link user
+    user_svc.link_user_to_trip(user_id, trip_id)
+    
+    return f"✅ O cofre da viagem para {destination} foi criado com sucesso! O usuário agora tem uma trip ativa ({trip_id}). Peça para ele enviar os primeiros documentos (passagens, hotéis, etc)."
+
 # Lista completa de tools
 ALL_TOOLS = [
     get_travel_recommendations,
@@ -685,5 +728,6 @@ ALL_TOOLS = [
     discard_pending_action,
     link_with_partner_trip,
     invite_family_member,
-    list_trip_participants
+    list_trip_participants,
+    manual_create_trip
 ]
