@@ -330,6 +330,7 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                         "🚀 **SUA JORNADA MONUMENTAL COMEÇA AGORA:**\n"
                         "1️⃣ *Quais são as datas exatas da sua viagem?*\n"
                         "2️⃣ *Pode me enviar seu primeiro documento ou roteiro para eu começar a trabalhar?*"
+                    )
             return
                 
         elif role == "admin" and message_str.lower().startswith("autorizar "):
