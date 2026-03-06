@@ -93,8 +93,8 @@ class InteractiveMapService:
         for doc in self.rag_svc.documents:
             meta = doc.get("metadata", {})
             if meta.get("trip_id") == active_trip_id:
-                # O text_content original fica em doc['page_content']
-                rag_context += f"\nFile [{meta.get('filename', 'Unknown')}]:\n{doc.get('page_content', '')}"
+                # O text_content original fica em doc['text']
+                rag_context += f"\nFile [{meta.get('filename', 'Unknown')}]:\n{doc.get('text', '')}"
 
         # 3. Processamento Neural (Backend Cérebro)
         extracted_locations = self._extract_locations_via_llm(rag_context)
