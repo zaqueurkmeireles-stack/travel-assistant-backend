@@ -89,10 +89,15 @@ class InteractiveMapService:
             return []
             
         # Para forçar contexto máximo, pegamos os dados de todos os docs cadastrados na viagem
-        # Usaremos os Metadados armazenados na memória do vector
+        # Fallback: Se não achar nada pelo trip_id, tenta pelo thread_id
         for doc in self.rag_svc.documents:
             meta = doc.get("metadata", {})
-            if meta.get("trip_id") == active_trip_id:
+            m_trip = meta.get("trip_id")
+            m_thread = self.user_svc.normalize_phone(meta.get("thread_id", ""))
+            
+            # Match 1: Trip ID perfeito
+            # Match 2: Thread ID (usuário) for o mesmo e a trip for a ativa ou estiver vazia
+            if m_trip == active_trip_id or (m_thread == clean_uid):
                 # O text_content original fica em doc['text']
                 rag_context += f"\nFile [{meta.get('filename', 'Unknown')}]:\n{doc.get('text', '')}"
 
