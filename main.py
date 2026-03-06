@@ -132,7 +132,11 @@ async def dashboard(request: Request, user_id: str = None):
         "user_id": user_id
     })
 
-@app.get("/map", response_class=HTMLResponse, tags=["UI"])
+@app.get("/ping", tags=["System"])
+async def debug_ping():
+    return {"status": "pong", "message": "Seven Assistant is alive and responding!"}
+
+@app.get("/trip-map", response_class=HTMLResponse, tags=["UI"])
 async def interactive_map(request: Request):
     """Retorna o Mapa Interativo 3D (Mapbox)"""
     return templates.TemplateResponse("map.html", {
