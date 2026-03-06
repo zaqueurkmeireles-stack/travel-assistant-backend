@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seven Travel Assistant - Interactive Map</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b0f19;
+            font-family: 'Inter', sans-serif;
+            color: white;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* Tema Escuro e Dourado (Joule Aesthetics) */
+        .marker-hotel {
+            background-color: #d4af37;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 15px #d4af37;
+            cursor: pointer;
+        }
+
+        .marker-airport {
+            background-color: #00f2ff;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 15px #00f2ff;
+            cursor: pointer;
+        }
+
+        .marker-attraction {
+            background-color: #ff3366;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px #ff3366;
+            cursor: pointer;
+        }
+
+        /* Popup Customizado Dark Theme */
+        .mapboxgl-popup-content {
+            background-color: rgba(15, 23, 42, 0.95) !important;
+            color: white !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(0, 242, 255, 0.3) !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(10px);
+            padding: 15px !important;
+            font-family: inherit;
+        }
+
+        .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+            border-top-color: rgba(15, 23, 42, 0.95) !important;
+        }
+
+        .mapboxgl-popup-close-button {
+            color: white;
+            padding: 5px 8px;
+        }
+
+        .mapboxgl-popup-close-button:hover {
+            color: #00f2ff;
+            background: transparent;
+        }
+
+        .popup-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+
+        .popup-address {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .popup-btn {
+            background: linear-gradient(135deg, #00f2ff, #0088ff);
+            color: black;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+            transition: opacity 0.3s;
+        }
+
+        .popup-btn:hover {
+            opacity: 0.8;
+        }
+
+        /* Iframe Modal para PDFs/Imagens */
+        #docModal {
+            display: none;
+            position: fixed;
+            top: 5%;
+            left: 5%;
+            width: 90%;
+            height: 90%;
+            background: #fff;
+            z-index: 9999;
+            border-radius: 12px;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.3);
+            overflow: hidden;
+        }
+
+        #docModal iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #closeModal {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: #ff3366;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10000;
+        }
+
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9000;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 242, 255, 0.1);
+            border-left-color: #00f2ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; font-weight: bold; letter-spacing: 2px; color: #00f2ff;">Mapeando Cofre Virtual...
+        </p>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="docModal">
+        <button id="closeModal">X</button>
+        <iframe id="docFrame" src=""></iframe>
+    </div>
+
+    <script>
+        // Token injetado magicamente pelo backend (Jinja2)
+        mapboxgl.accessToken = '{{ MAPBOX_ACCESS_TOKEN }}';
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11',
+            projection: 'globe', // Projeção 3D Planetária
+            center: [0, 20], // Reset View Inicial
+            zoom: 1.5,
+            pitch: 45
+        });
+
+        // Efeito de atmosfera no globo
+        map.on('style.load', () => {
+            map.setFog({
+                color: 'rgb(15, 23, 42)', // Cor do horizonte
+                'high-color': 'rgb(11, 15, 25)', // Cor do espaço
+                'horizon-blend': 0.1, // Suavidade da atmosfera
+                'space-color': 'rgb(0, 0, 0)',
+                'star-intensity': 0.5
+            });
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+
+        async function loadTripData() {
+            if (!userId) {
+                alert("ID do usuário não fornecido na URL (?user_id=...)");
+                document.getElementById('loadingOverlay').style.display = 'none';
+                return;
+            }
+
+            try {
+                // Chama a nossa API (Pilar 2) que executa a extração LLM (Pilar 1)
+                const response = await fetch(`/api/map/data?user_id=${userId}`);
+                const result = await response.json();
+
+                document.getElementById('loadingOverlay').style.display = 'none';
+
+                if (!result.success || !result.data || result.data.length === 0) {
+                    alert("Zero locais geolocalizados para o seu usuário. Envie PDFs via WhatsApp primeiro ou espere o RAG indexar!");
+                    return;
+                }
+
+                const locations = result.data;
+                const coordinates = [];
+                const bounds = new mapboxgl.LngLatBounds();
+
+                locations.forEach(loc => {
+                    const coords = [loc.lng, loc.lat];
+                    coordinates.push(coords);
+                    bounds.extend(coords);
+
+                    // Cria o HTML do Marker Customizado
+                    const el = document.createElement('div');
+
+                    if (loc.type === 'hotel') el.className = 'marker-hotel';
+                    else if (loc.type === 'airport' || loc.type === 'transit') el.className = 'marker-airport';
+                    else el.className = 'marker-attraction';
+
+                    // HTML do Popup Interno
+                    let docsHtml = '';
+                    if (loc.documents && loc.documents.length > 0) {
+                        loc.documents.forEach(doc => {
+                            if (doc) { // previne strings vazias
+                                docsHtml += `<button class="popup-btn" onclick="openDocument('${doc}')">Exibir Voucher: ${doc.substring(0, 15)}...</button>`;
+                            }
+                        });
+                    }
+
+                    const popupContent = `
+                        <div class="popup-title">${loc.name || 'Localização'}</div>
+                        <div class="popup-address">${loc.address || ''}</div>
+                        ${loc.code && loc.code !== 'N/A' ? `<div style="font-size:11px; color:#d4af37; margin-bottom:5px;">Code: ${loc.code}</div>` : ''}
+                        ${docsHtml}
+                    `;
+
+                    const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(popupContent);
+
+                    // Adiciona o Pin no Mapa
+                    new mapboxgl.Marker(el)
+                        .setLngLat(coords)
+                        .setPopup(popup)
+                        .addTo(map);
+                });
+
+                // Se houver mais de um ponto, desenha a rota!
+                if (coordinates.length > 1) {
+                    map.on('load', () => {
+                        map.addSource('route', {
+                            'type': 'geojson',
+                            'data': {
+                                'type': 'Feature',
+                                'properties': {},
+                                'geometry': {
+                                    'type': 'LineString',
+                                    'coordinates': coordinates
+                                }
+                            }
+                        });
+
+                        // Traço tracejado neon ligando os pontos
+                        map.addLayer({
+                            'id': 'route',
+                            'type': 'line',
+                            'source': 'route',
+                            'layout': {
+                                'line-join': 'round',
+                                'line-cap': 'round'
+                            },
+                            'paint': {
+                                'line-color': '#00f2ff',
+                                'line-width': 3,
+                                'line-dasharray': [2, 4],
+                                'line-opacity': 0.7
+                            }
+                        });
+                    });
+                }
+
+                // Dá Zoom suave nos pontos encontrados
+                map.fitBounds(bounds, { padding: 100, maxZoom: 14, pitch: 45, duration: 4000 });
+
+            } catch (error) {
+                console.error("Erro fatal ao gerar mapa:", error);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                alert("Erro ao buscar dados do G-Brain.");
+            }
+        }
+
+        // Lógica do Modal de Arquivos
+        function openDocument(filename) {
+            const modal = document.getElementById('docModal');
+            const frame = document.getElementById('docFrame');
+            // Bate na rota raiz do servidor
+            frame.src = `/api/documents/${filename}`;
+            modal.style.display = 'block';
+        }
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('docModal').style.display = 'none';
+            document.getElementById('docFrame').src = '';
+        });
+
+        // Start
+        loadTripData();
+    </script>
+</body>
+
+</html>

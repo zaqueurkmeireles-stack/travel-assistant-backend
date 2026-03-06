@@ -705,5 +705,34 @@ async def dashboard_action(request: DashboardActionRequest):
         logger.error(f"HTTP error from n8n for dashboard action: {e}")
         return JSONResponse(status_code=e.response.status_code, content={"success": False, "error": "Failed to trigger action upstream."})
     except Exception as e:
-        logger.error(f"Error triggering dashboard action: {e}")
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+@router.get("/map/data", tags=["Map"])
+async def get_interactive_map_data(user_id: str):
+    """
+    Retorna os POIs (Hoteis, Aeroportos, Eventos) extraídos do RAG do usuário.
+    Usado pelo frontend (Mapbox) para plotagem visual.
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+        
+    try:
+        from app.services.map_service import InteractiveMapService
+        map_svc = InteractiveMapService()
+        locations = map_svc.get_trip_map_data(user_id)
+        return {"success": True, "data": locations}
+    except Exception as e:
+        logger.error(f"Erro ao buscar dados do mapa: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+@router.get("/documents/{filename}", tags=["Documents"])
+async def get_document_file(filename: str):
+    """
+    Retorna o arquivo PDF ou Imagem direto do disco para visualização no iframe do Mapa.
+    """
+    import os
+    from fastapi.responses import FileResponse
+    file_path = os.path.join(settings.DOCUMENTS_PATH, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Documento não encontrado")

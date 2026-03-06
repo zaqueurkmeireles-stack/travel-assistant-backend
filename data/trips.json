@@ -13,5 +13,14 @@
       "D-10_poi_deep_dive",
       "D-1_poi_alert_20260305"
     ]
+  },
+  {
+    "id": "2026-10_Japão",
+    "user_id": "5511999999999",
+    "destination": "Japão",
+    "participants": [
+      "5511999999999"
+    ],
+    "status": "planned"
   }
 ]

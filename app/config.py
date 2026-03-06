@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     # MAPAS E GEOLOCALIZAÇÃO
     # ============================================================
     GOOGLE_MAPS_API_KEY: Optional[str] = None
+    MAPBOX_ACCESS_TOKEN: Optional[str] = None
     
     # ============================================================
     # CLIMA

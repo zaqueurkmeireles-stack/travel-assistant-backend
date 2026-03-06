@@ -123,6 +123,14 @@ async def dashboard(request: Request, user_id: str = None):
         "user_id": user_id
     })
 
+@app.get("/map", response_class=HTMLResponse, tags=["UI"])
+async def interactive_map(request: Request):
+    """Retorna o Mapa Interativo 3D (Mapbox)"""
+    return templates.TemplateResponse("map.html", {
+        "request": request,
+        "MAPBOX_ACCESS_TOKEN": settings.MAPBOX_ACCESS_TOKEN
+    })
+
 @app.get("/test-upload", response_class=HTMLResponse, tags=["UI"])
 async def test_upload_page(request: Request):
     """Página de teste para upload de documentos via Web"""
