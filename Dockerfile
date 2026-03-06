@@ -20,8 +20,9 @@ EXPOSE 80
 
 ENV PYTHONUNBUFFERED=1
 
-# Desativar Heathcheck do Docker nativamente para evitar mortes súbitas do Easypanel
-HEALTHCHECK NONE
+# Healthcheck para avisar ao Traefik/Easypanel que o app está pronto
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 # Rodar via python main.py para garantir que as configurações do config.py (como a porta) sejam respeitadas
 CMD ["python", "main.py"]
