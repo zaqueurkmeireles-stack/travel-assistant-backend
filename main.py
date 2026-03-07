@@ -21,6 +21,7 @@ from app.services.diagnostic_service import DiagnosticService
 _agent = None
 _n8n_service = None
 _ingestor = None
+_diagnostic_run = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,15 +45,21 @@ async def lifespan(app: FastAPI):
     logger.info(f"🌍 [ENVIRONMENT] Modo: {settings.ENVIRONMENT} | Port: {settings.PORT} | Name: {__name__}")
     
     # --- [WATCHDOG / DIAGNOSTICO DE INICIALIZACAO] ---
-    logger.info("🛡️ Sentinela: Iniciando verificação de pré-vôo no Startup...")
-    diag = DiagnosticService()
-    report = await diag.check_all()
-    if report["overall_status"] != "HEALTHY":
-        logger.error(f"🚨 ALERTA: Sistema iniciou em estado DEGRADADO! {report['overall_status']}")
-        # Envia alerta proativo para o admin
-        await diag.notify_admin_if_degraded(report)
-    else:
-        logger.info("✅ Sentinela: Todos os sistemas verdes. Pronto para operar.")
+    global _diagnostic_run
+    if not _diagnostic_run:
+        logger.info("🛡️ Sentinela: Iniciando verificação de pré-vôo no Startup...")
+        # Garantir que instâncias core foram disparadas antes do check
+        get_idempotency()
+        
+        diag = DiagnosticService()
+        report = await diag.check_all()
+        if report["overall_status"] != "HEALTHY":
+            logger.error(f"🚨 ALERTA: Sistema iniciou em estado DEGRADADO! {report['overall_status']}")
+            # Envia alerta proativo para o admin
+            await diag.notify_admin_if_degraded(report)
+        else:
+            logger.info("✅ Sentinela: Todos os sistemas verdes. Pronto para operar.")
+        _diagnostic_run = True
 
     if __name__ != "__main__":
         logger.warning("⚠️ [STARTUP] O aplicativo não foi iniciado via 'python main.py'. Isso pode causar problemas de porta no Easypanel.")
