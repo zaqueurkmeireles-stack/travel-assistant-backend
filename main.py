@@ -27,8 +27,10 @@ async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação (Startup/Shutdown)"""
     logger.info(f"🚀 [STARTUP] Iniciando TravelCompanion AI... (PID: {os.getpid()})")
     
-    # 1. Preparar diretórios
+    # 1. Preparar diretórios e serviços core
     setup_directories()
+    # Trigger instances
+    get_idempotency()
     
     # 2. Iniciar agendador de tarefas proativas
     try:
