@@ -112,9 +112,18 @@ class DuffelService:
                 result += f"   🛫 Saída: {dep_at}\n"
                 result += f"   🛬 Chegada: {arr_at}\n"
                 result += f"   🔗 Paradas: {'Direto' if stops == 0 else f'{stops} conexão(ões)'}\n"
+                
+                # Gerar Link de busca no Google Flights como conveniência
+                gf_link = f"https://www.google.com/travel/flights?q=Flights%20from%20{origin}%20to%20{destination}%20on%20{departure_date}"
+                if return_date: gf_link += f"%20through%20{return_date}"
+                
+                result += f"   🔗 [Ver no Google Flights]({gf_link})\n"
                 result += f"   🆔 ID: `{offer_id[:30]}...`\n\n"
 
-            result += "_Para reservar a opção desejada, me diga o número (1-5) ou o ID da oferta!_"
+            if "duffel_test" in self.api_key:
+                result += "⚠️ *NOTA:* Os resultados acima são de **TESTE (Sandbox)**. A 'Duffel Airways' é uma companhia fictícia. Para ver voos reais (LATAM, Azul, etc), é necessário ativar uma 'Live Key' no painel da Duffel.\n\n"
+
+            result += "_Para reservar a opção desejada pelo Concierge, me diga o número (1-5) ou o ID da oferta!_"
             return result
 
         except Exception as e:
