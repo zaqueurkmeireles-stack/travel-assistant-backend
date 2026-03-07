@@ -29,6 +29,7 @@ _connectivity_svc = None
 _emergency_svc = None
 _park_svc = None
 _event_svc = None
+_booking_svc = None
 
 def get_openai_svc():
     global _openai_svc
@@ -110,6 +111,13 @@ def get_event_svc():
         from app.services.event_service import EventService
         _event_svc = EventService()
     return _event_svc
+
+def get_booking_svc():
+    global _booking_svc
+    if _booking_svc is None:
+        from app.services.booking_service import BookingService
+        _booking_svc = BookingService()
+    return _booking_svc
 
 @tool
 def get_travel_recommendations(destination: str, preferences: str) -> str:
@@ -392,11 +400,11 @@ def search_government_notices(destination: str, query: str = "") -> str:
 @tool
 def search_hotels(city: str, check_in_date: str, check_out_date: str) -> str:
     """
-    Busca hotéis reais com preços atuais via Google Hotels.
+    Busca hotéis reais com preços atuais via Booking.com.
     check_in_date e check_out_date devem estar no formato YYYY-MM-DD.
     """
-    logger.info(f"🏨 Tool: Buscando hotéis em {city}")
-    return get_serpapi_svc().search_hotels(city, check_in_date, check_out_date)
+    logger.info(f"🏨 Tool: Buscando hotéis via Booking em {city}")
+    return get_booking_svc().search_hotels(city, check_in_date, check_out_date)
 
 @tool
 def convert_currency(amount: float, from_currency: str, to_currency: str = "BRL") -> str:

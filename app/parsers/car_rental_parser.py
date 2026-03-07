@@ -38,7 +38,8 @@ class CarRentalParser(BaseParser):
             "local de DEVOLUÇÃO, data e hora de retirada, data e hora de devolução, "
             "categoria ou modelo do veículo, nome do condutor principal, "
             "e se inclui ou não seguro. "
-            "O campo 'pickup_location' e 'pickup_terminal' são CRÍTICOS para o guia de chegada no aeroporto."
+            "BUSQUE TAMBÉM: Informações de shuttle (traslado) e o PONTO DE ENCONTRO exato no aeroporto. "
+            "Os campos 'pickup_location', 'pickup_terminal' e 'meeting_point' são CRÍTICOS para o guia de chegada."
         )
         
         result = self.openai_svc.analyze_document(text, context_hint)
