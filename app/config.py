@@ -93,6 +93,19 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_CREDENTIALS_JSON: Optional[str] = None # JSON string or path to file
     GOOGLE_DRIVE_ROOT_FOLDER_ID: Optional[str] = None
     
+    # --- ALIASES PARA O SENTINELA ---
+    @property
+    def GEMINI_API_KEY(self) -> Optional[str]:
+        return self.GOOGLE_GEMINI_API_KEY
+
+    @property
+    def GOOGLE_DRIVE_FOLDER_ID(self) -> Optional[str]:
+        return self.GOOGLE_DRIVE_ROOT_FOLDER_ID
+
+    @property
+    def N8N_WEBHOOK_URL(self) -> str:
+        return self.N8N_WEBHOOK_URL_OUTPUT
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

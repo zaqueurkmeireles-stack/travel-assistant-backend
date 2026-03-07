@@ -87,6 +87,7 @@ def call_model(state: AgentState, config: dict = None):
         "### GESTÃO DE DOCUMENTOS E CONFLITOS:\n"
         "- Se o usuário enviar um documento que já existe (conflito), o sistema perguntará se quer substituir. Se ele disser 'sim', chame 'confirm_document_replacement'. Se disser 'não', chame 'discard_pending_action'.\n"
         "- Se um documento for marcado como irrelevante e o usuário insistir ('sim incluir'), chame 'confirm_irrelevancy_inclusion'. Se ele desistir, chame 'discard_pending_action'.\n"
+        "- **Autorização de Convidados:** Se o Administrador disser 'Sim' ou 'Autorizado' após ser notificado de um novo pedido de acesso, CHAME 'approve_pending_access_request'. Priorize esse contexto se não houver um conflito de documentos ativo.\n"
         "- Liste TODOS os documentos no RAG quando solicitado. Nunca esconda passageiros.\n"
         "- **Contexto de Grupo:** Se detectar que o usuário está planejando com mais pessoas, pergunte: 'Você está planejando essa viagem sozinho ou gostaria de compartilhar os documentos com alguém (ex: esposa/marido)?'.\n"
         "- Se o usuário fornecer o número do parceiro, use 'link_with_partner_trip' para unificar o RAG.\n"

@@ -244,25 +244,38 @@ def confirm_document_replacement(config: RunnableConfig) -> str:
     traveler = pending.get("traveler")
     doc_type = pending.get("document_type")
     trip_id = pending.get("metadata", {}).get("trip_id")
+    filename = pending.get("filename")
     
-    rag.delete_documents_by_type(thread_id, doc_type, trip_id=trip_id, traveler_name=traveler)
+    rag.delete_documents_by_type(thread_id, doc_type, trip_id=trip_id, traveler_name=traveler, filename=filename)
     
-    # 2. Indexar o novo
+    # 2. Indexar o novo (usando add_documents_batch interno para o texto chunkado)
     text = pending.get("text")
     metadata = pending.get("metadata")
+    metadata["drive_link"] = pending.get("drive_link") # Garantir link no metadata final
     
-    # Chunking manual se for muito grande
+    # Chunking manual para RAG interno
     chunk_size = 4000
     overlap = 200
+    chunks = []
     if len(text) > chunk_size:
         for i in range(0, len(text), chunk_size - overlap):
-            chunk = text[i:i + chunk_size]
-            rag.add_document(chunk, metadata)
+            chunks.append(text[i:i + chunk_size])
     else:
-        rag.add_document(text, metadata)
+        chunks = [text]
     
+    # Adicionar batch de chunks do mesmo documento
+    rag.add_documents_batch(chunks, [metadata] * len(chunks))
+    
+    # 3. Remover da fila
     user_svc.clear_pending_substitution(thread_id)
-    return f"✅ Documento '{pending['filename']}' substituído com sucesso para o passageiro {traveler}!"
+    remaining = user_svc.get_pending_substitutions_count(thread_id)
+    
+    msg = f"✅ Documento '{pending['filename']}' substituído com sucesso para o passageiro {traveler}!"
+    if remaining > 0:
+        next_doc = user_svc.get_pending_substitution(thread_id)
+        msg += f"\n\n📂 **Ainda temos {remaining} documento(s) na fila.**\nPróximo: '{next_doc['filename']}'. Deseja substituir também?"
+    
+    return msg
 
 @tool
 def confirm_irrelevancy_inclusion(config: RunnableConfig) -> str:
@@ -283,34 +296,95 @@ def confirm_irrelevancy_inclusion(config: RunnableConfig) -> str:
     
     text = pending.get("text")
     metadata = pending.get("metadata")
-    
-    # Chunking manual se for muito grande
+    metadata["drive_link"] = pending.get("drive_link")
+
     chunk_size = 4000
     overlap = 200
+    chunks = []
     if len(text) > chunk_size:
         for i in range(0, len(text), chunk_size - overlap):
-            chunk = text[i:i + chunk_size]
-            rag.add_document(chunk, metadata)
+            chunks.append(text[i:i + chunk_size])
     else:
-        rag.add_document(text, metadata)
+        chunks = [text]
+    
+    rag.add_documents_batch(chunks, [metadata] * len(chunks))
     
     user_svc.clear_pending_irrelevancy(thread_id)
-    return f"✅ Documento '{pending.get('filename', 'documento')}' incluído no dossiê de viagem com sucesso!"
+    remaining = user_svc.get_pending_irrelevancies_count(thread_id)
+    
+    msg = f"✅ Documento '{pending.get('filename', 'documento')}' incluído no dossiê de viagem com sucesso!"
+    if remaining > 0:
+        msg += f"\n\n📂 **Ainda temos {remaining} documento(s) marcados como irrelevantes na fila.** Deseja incluir o próximo?"
+        
+    return msg
+
+@tool
+def approve_pending_access_request(config: RunnableConfig) -> str:
+    """
+    Aprova e autoriza o pedido de acesso mais recente de um novo usuário para o grupo/viagem atual.
+    Chame quando o usuário (Admin) responder 'Sim', 'Autorizado' ou 'Pode liberar' após ser notificado de um novo pedido de acesso.
+    """
+    admin_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    from app.services.n8n_service import N8nService
+    user_svc = UserService()
+    n8n = N8nService()
+    
+    admin_user = user_svc.get_user(admin_id)
+    pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
+    
+    if not pending_requests:
+        return "Não encontrei nenhuma solicitação de acesso pendente na memória recente."
+    
+    # Pegar o mais recente por timestamp
+    guest_id = sorted(pending_requests.items(), key=lambda x: x[1]['timestamp'] if isinstance(x[1], dict) else x[1], reverse=True)[0][0]
+    guest_request = pending_requests.get(guest_id, {})
+    suggested_trip = guest_request.get("suggested_trip_id") if isinstance(guest_request, dict) else None
+    
+    active_trip = suggested_trip or user_svc.get_active_trip(admin_id)
+    
+    if not active_trip:
+        return f"Não consegui identificar para qual viagem autorizar o contato {guest_id}. Por favor, autorize manualmente usando: *autorizar {guest_id} [ID_DA_VIAGEM]*"
+
+    success_trip_id = user_svc.authorize_guest(admin_id, guest_id, active_trip)
+    
+    if success_trip_id:
+        msg_guest = (
+            "🎉 *Seja muito bem-vindo ao Seven Assistant Travel - O Ápice da Consultoria de Viagens.*\n\n"
+            "O Administrador acaba de autorizar seu acesso ao **projeto de assistência mais monumental da atualidade**. Eu não sou um robô comum; sou seu **Concierge de Elite**, projetado para ser seu melhor companheiro de jornada. 🌍✈️🛡️\n\n"
+            "📋 **O QUE EU FAÇO POR VOCÊ:**\n\n"
+            "🔹 **Dossiê Digital & Auditoria:** Me envie fotos ou PDFs de passagens, hotéis e seguros. Eu organizo e audito tudo.\n"
+            "🔹 **Deep-Dive de Destino:** Faço pesquisas profundas sobre seu roteiro.\n"
+            "🔹 **Consultoria & Roteiro:** Auxilio na montagem do seu itinerário.\n\n"
+            "🚀 **Sua jornada começa agora! Pode me enviar seu primeiro documento ou roteiro?**"
+        )
+        n8n.enviar_resposta_usuario(guest_id, msg_guest)
+        return f"✅ Contato {guest_id} autorizado com sucesso para a viagem '{success_trip_id}'!"
+    
+    return "❌ Falha técnica ao autorizar o contato."
 
 @tool
 def discard_pending_action(config: RunnableConfig) -> str:
     """
-    Descarta qualquer ação pendente de substituição ou inclusão de documento irrelevante.
+    Descarta qualquer ação pendente de substituição ou inclusão de documento irrelevante na fila.
     Chame quando o usuário responder 'não', 'cancela', 'esquece' ou similar.
     """
     thread_id = config.get("configurable", {}).get("thread_id", "default")
     from app.services.user_service import UserService
     user_svc = UserService()
     
+    # Remove o primeiro de cada fila
     user_svc.clear_pending_substitution(thread_id)
     user_svc.clear_pending_irrelevancy(thread_id)
     
-    return "Ação cancelada. O documento anterior foi mantido ou a nova inclusão foi descartada."
+    rem_sub = user_svc.get_pending_substitutions_count(thread_id)
+    rem_irr = user_svc.get_pending_irrelevancies_count(thread_id)
+    
+    msg = "Ação cancelada para o documento atual."
+    if rem_sub > 0 or rem_irr > 0:
+        msg += f"\n\n📂 Ainda restam {rem_sub + rem_irr} documento(s) na fila de pendências."
+        
+    return msg
 
 @tool
 def query_travel_documents(query_text: str, config: RunnableConfig) -> str:
@@ -804,6 +878,7 @@ ALL_TOOLS = [
     configure_proactive_frequency,
     confirm_document_replacement,
     confirm_irrelevancy_inclusion,
+    approve_pending_access_request,
     discard_pending_action,
     link_with_partner_trip,
     invite_family_member,

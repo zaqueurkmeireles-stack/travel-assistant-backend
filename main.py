@@ -4,13 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
+from fastapi.responses import JSONResponse
+import uuid
 import uvicorn
 import os
 import signal
 import sys
+import time
 
 from app.config import settings, setup_directories
-from app.api.routes import router as api_router
+from app.api import routes, shield
+from app.services.idempotency_service import get_idempotency
+from app.services.diagnostic_service import DiagnosticService
 
 # Lazy instances
 _agent = None
@@ -35,6 +40,18 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ [SCHEDULER] Falha ao iniciar: {e}")
     
     logger.info(f"🌍 [ENVIRONMENT] Modo: {settings.ENVIRONMENT} | Port: {settings.PORT} | Name: {__name__}")
+    
+    # --- [WATCHDOG / DIAGNOSTICO DE INICIALIZACAO] ---
+    logger.info("🛡️ Sentinela: Iniciando verificação de pré-vôo no Startup...")
+    diag = DiagnosticService()
+    report = await diag.check_all()
+    if report["overall_status"] != "HEALTHY":
+        logger.error(f"🚨 ALERTA: Sistema iniciou em estado DEGRADADO! {report['overall_status']}")
+        # Envia alerta proativo para o admin
+        await diag.notify_admin_if_degraded(report)
+    else:
+        logger.info("✅ Sentinela: Todos os sistemas verdes. Pronto para operar.")
+
     if __name__ != "__main__":
         logger.warning("⚠️ [STARTUP] O aplicativo não foi iniciado via 'python main.py'. Isso pode causar problemas de porta no Easypanel.")
     
@@ -60,6 +77,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_correlation_id(request: Request, call_next):
+    correlation_id = str(uuid.uuid4())
+    request.state.correlation_id = correlation_id
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    correlation_id = getattr(request.state, "correlation_id", "unknown")
+    logger.error(f"❌ [GLOBAL ERROR] {exc} | CorrelationID: {correlation_id}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Erro interno no servidor.",
+            "protocol": correlation_id
+        }
+    )
+
 # Health Check Unificado (Padrão para Easypanel / Portainer)
 @app.get("/", tags=["System"])
 @app.get("/health", tags=["System"])
@@ -69,13 +107,13 @@ async def health_check():
     logger.info("📡 [HEALTHCHECK] Requisição recebida com sucesso.")
     return {
         "status": "online",
-        "service": "Seven Assistant Travel",
-        "version": "1.1.0",
+        "timestamp": time.time(),
         "environment": settings.ENVIRONMENT
     }
 
 # Registrar Rotas da API
-app.include_router(api_router, prefix="/api", tags=["API"])
+app.include_router(routes.router, prefix="/api")
+app.include_router(shield.router, prefix="/api")
 
 # Registrar Static Files (para manifest.json, sw.js e ícones)
 from fastapi.staticfiles import StaticFiles

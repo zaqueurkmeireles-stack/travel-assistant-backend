@@ -51,28 +51,32 @@ class UserService:
 
     def normalize_phone(self, phone: str) -> str:
         """
-        Normaliza o número removendo o 9º dígito (Brasil) e preservando domínios de grupo.
+        Normaliza o número para o formato E.164 canônico (apenas dígitos, sem 9º dígito BR).
         """
         if not phone: return ""
         
         phone_str = str(phone).strip().lower()
         
-        # 🛡️ SE FOR GRUPO (@g.us), preservamos o JID completo para evitar DMs a estranhos
+        # 🛡️ SE FOR GRUPO (@g.us), preservamos o JID completo
         if "@g.us" in phone_str:
             return phone_str
             
-        # Para contatos normais (@s.whatsapp.net ou apenas número), limpamos para dígitos
+        # Remove sufixos do WhatsApp se existirem
+        if "@s.whatsapp.net" in phone_str:
+            phone_str = phone_str.split("@")[0]
+            
+        # Remove caracteres não numéricos
         p = "".join(filter(str.isdigit, phone_str))
         
-        # 🛡️ ALERTA: Se o input tinha caracteres mas resultou em nada (ex: "undefined")
-        if not p and phone_str:
-            if phone_str != "desconhecido":
-                logger.warning(f"⚠️ Normalização resultou em vazio para o input: '{phone_str}'")
+        if not p:
             return ""
 
         # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
         if p.startswith("55") and len(p) == 13:
             return p[:4] + p[5:]
+        
+        # Se não tem DDI mas parece ser BR (8 ou 9 dígitos sem DDD, ou 10/11 com DDD)
+        # Assumimos que o n8n/gateway já entrega com DDI 55 na maioria das vezes.
         
         return p
 
@@ -134,6 +138,52 @@ class UserService:
                 return "unauthorized"
                 
         return role
+
+    def authorize(self, sender_id: str, trip_id: Optional[str] = None, scope: str = "ask") -> tuple[bool, str]:
+        """
+        Ponto único de decisão de permissões (ACL).
+        Retorna (ALLOWED, MOTIVO).
+        Scopes: ask, upload, view_drive_links, view_rag, admin
+        """
+        uid = self.normalize_phone(sender_id)
+        admin_number = self.normalize_phone(getattr(settings, "ADMIN_WHATSAPP_NUMBER", ""))
+        
+        # 1. Admin tem tudo
+        if uid == admin_number:
+            return True, "admin"
+            
+        user = self.get_user(uid)
+        if not user:
+            return False, "Usuário não cadastrado ou não autorizado."
+            
+        role = self.get_user_role(uid)
+        
+        # 2. Se não for nem guest nem admin
+        if role == "unauthorized":
+            return False, "Seu acesso expirou ou você ainda não foi autorizado pelo administrador."
+            
+        # 3. Se o scope for admin e o cara não é admin
+        if scope == "admin" and role != "admin":
+            return False, "Esta ação requer privilégios de administrador."
+            
+        # 4. Checagem de Trip ID (Escopo da Viagem)
+        # Se um trip_id específico foi passado, o usuário DEVE estar autorizado para ele
+        if trip_id:
+            authorized_trips = user.get("authorized_trips", [])
+            if trip_id not in authorized_trips:
+                return False, f"Você não possui autorização para acessar dados da viagem '{trip_id}'."
+        
+        # 5. Scopes específicos para Guests
+        if role == "guest":
+            if scope == "upload":
+                return True, "guest_upload"
+            if scope == "ask":
+                return True, "guest_ask"
+            if scope in ["view_drive_links", "view_rag"]:
+                # Por padrão, convidados podem ver se estão na trip
+                return True, f"guest_{scope}"
+                
+        return True, "authorized"
 
     def get_active_trip(self, user_id: str) -> Optional[str]:
         user = self.get_user(user_id)
@@ -371,66 +421,98 @@ class UserService:
         return user.get("phase") if user else None
 
     def set_pending_substitution(self, user_id: str, doc_data: Dict[str, Any]):
-        """Armazena temporariamente um documento que gerou conflito para confirmação."""
+        """Adiciona um documento à fila de pendências para substituição."""
         uid = self.normalize_phone(user_id)
         if uid not in self.users: return
-        self.users[uid]["pending_substitution"] = doc_data
-        self.users[uid]["pending_at"] = datetime.now().isoformat()
+        
+        if "pending_substitutions" not in self.users[uid]:
+            self.users[uid]["pending_substitutions"] = []
+            
+        # Evita duplicar o mesmo arquivo na fila se enviado muito rápido
+        for item in self.users[uid]["pending_substitutions"]:
+            if item.get("filename") == doc_data.get("filename"):
+                return
+
+        self.users[uid]["pending_substitutions"].append({
+            **doc_data,
+            "pending_at": datetime.now().isoformat()
+        })
         self._save_users()
+        logger.debug(f"📥 Doc '{doc_data.get('filename')}' adicionado à fila de substituição de {uid}")
 
     def get_pending_substitution(self, user_id: str) -> Optional[Dict]:
-        """Recupera o documento pendente se tiver menos de 30 minutos."""
+        """Recupera o primeiro da fila que não expirou."""
         uid = self.normalize_phone(user_id)
         user = self.get_user(uid)
-        if not user or "pending_substitution" not in user:
+        if not user or not user.get("pending_substitutions"):
             return None
         
-        pending_at = user.get("pending_at")
-        if not pending_at: return None
+        # Filtra expirados (30 min)
+        now = datetime.now()
+        valid_items = []
+        for item in user["pending_substitutions"]:
+            p_at = item.get("pending_at")
+            if p_at and (now - datetime.fromisoformat(p_at)).total_seconds() <= 1800:
+                valid_items.append(item)
         
-        dt_pending = datetime.fromisoformat(pending_at)
-        if (datetime.now() - dt_pending).total_seconds() > 1800: # 30 min expiration
-            return None
-            
-        return user["pending_substitution"]
-
-    def clear_pending_substitution(self, user_id: str):
-        """Limpa o estado de substituição pendente."""
-        uid = self.normalize_phone(user_id)
-        if uid in self.users:
-            self.users[uid].pop("pending_substitution", None)
-            self.users[uid].pop("pending_at", None)
+        if len(valid_items) != len(user["pending_substitutions"]):
+            user["pending_substitutions"] = valid_items
             self._save_users()
 
+        return valid_items[0] if valid_items else None
+
+    def clear_pending_substitution(self, user_id: str):
+        """Remove o primeiro item da fila após processamento."""
+        uid = self.normalize_phone(user_id)
+        if uid in self.users and self.users[uid].get("pending_substitutions"):
+            self.users[uid]["pending_substitutions"].pop(0)
+            self._save_users()
+            logger.info(f"💾 Item removido da fila de substituição de {uid}. Restantes: {len(self.users[uid]['pending_substitutions'])}")
+
+    def get_pending_substitutions_count(self, user_id: str) -> int:
+        uid = self.normalize_phone(user_id)
+        return len(self.users.get(uid, {}).get("pending_substitutions", []))
+
     def set_pending_irrelevancy(self, user_id: str, doc_data: Dict[str, Any]):
-        """Armazena um documento considerado irrelevante aguardando o usuário forçar a inclusão."""
+        """Adiciona um documento à fila de irrelevância."""
         uid = self.normalize_phone(user_id)
         if uid not in self.users: return
-        self.users[uid]["pending_irrelevancy"] = doc_data
-        self.users[uid]["pending_irr_at"] = datetime.now().isoformat()
+        
+        if "pending_irrelevancies" not in self.users[uid]:
+            self.users[uid]["pending_irrelevancies"] = []
+            
+        self.users[uid]["pending_irrelevancies"].append({
+            **doc_data,
+            "pending_irr_at": datetime.now().isoformat()
+        })
         self._save_users()
 
     def get_pending_irrelevancy(self, user_id: str) -> Optional[Dict]:
-        """Recupera o documento irrelevante pendente se tiver menos de 30 minutos."""
         uid = self.normalize_phone(user_id)
         user = self.get_user(uid)
-        if not user or "pending_irrelevancy" not in user:
+        if not user or not user.get("pending_irrelevancies"):
             return None
         
-        pending_at = user.get("pending_irr_at")
-        if not pending_at: return None
+        now = datetime.now()
+        valid_items = []
+        for item in user["pending_irrelevancies"]:
+            p_at = item.get("pending_irr_at")
+            if p_at and (now - datetime.fromisoformat(p_at)).total_seconds() <= 1800:
+                valid_items.append(item)
         
-        dt_pending = datetime.fromisoformat(pending_at)
-        if (datetime.now() - dt_pending).total_seconds() > 1800:
-            return None
-            
-        return user["pending_irrelevancy"]
+        if len(valid_items) != len(user["pending_irrelevancies"]):
+            user["pending_irrelevancies"] = valid_items
+            self._save_users()
+
+        return valid_items[0] if valid_items else None
 
     def clear_pending_irrelevancy(self, user_id: str):
-        """Limpa o estado de documento irrelevante pendente."""
         uid = self.normalize_phone(user_id)
-        if uid in self.users:
-            self.users[uid].pop("pending_irrelevancy", None)
-            self.users[uid].pop("pending_irr_at", None)
+        if uid in self.users and self.users[uid].get("pending_irrelevancies"):
+            self.users[uid]["pending_irrelevancies"].pop(0)
             self._save_users()
+
+    def get_pending_irrelevancies_count(self, user_id: str) -> int:
+        uid = self.normalize_phone(user_id)
+        return len(self.users.get(uid, {}).get("pending_irrelevancies", []))
 
