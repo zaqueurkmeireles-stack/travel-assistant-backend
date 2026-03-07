@@ -58,6 +58,7 @@ def call_model(state: AgentState, config: dict = None):
     # Adicionar instrução de sistema
     from langchain_core.messages import SystemMessage
     from app.prompts.itinerary_strategist import ITINERARY_STRATEGIST_PROMPT
+    from app.prompts.legal_defender import LEGAL_DEFENDER_PROMPT
     
     base_prompt = (
         "VOCÊ É O SEVEN ASSISTANT TRAVEL - O ÁPICE DA CONSULTORIA DE VIAGENS MONUMENTAL. "
@@ -101,7 +102,9 @@ def call_model(state: AgentState, config: dict = None):
         "Se não há documentos, peça a passagem primeiro. Analise docs faltantes e cobre carinhosamente. Seja cordial e econômico com os dados.\n\n"
         f"### MÓDULO ESTRATEGISTA DE ROTEIROS (MÁXIMA PRIORIDADE ABSOLUTA):\n"
         f"Sempre que o usuário pedir sugestões, roteiros ou dicas detalhadas sobre um destino (mesmo que você acabe de criar a viagem usando a tool), a sua resposta de texto FINAL é OBRIGADA a seguir ESTRITAMENTE o formato MASTER DO ESTRATEGISTA DE ROTEIROS abaixo. Não resuma. Gere as Fases 3 e 4 completas com Markdown:\n"
-        f"{ITINERARY_STRATEGIST_PROMPT}"
+        f"{ITINERARY_STRATEGIST_PROMPT}\n\n"
+        f"### MÓDULO DE DEFESA: GESTÃO DE CRISE\n"
+        f"{LEGAL_DEFENDER_PROMPT}"
     )
     
     context_prompt = f"\n\nContexto Atual:\n- ID Usuário: {thread_id}\n- Seu Papel na Viagem: {role}\n- Viagem Ativa (Trip ID): {active_trip if active_trip else 'Nenhuma viagem vinculada.'}\n"
