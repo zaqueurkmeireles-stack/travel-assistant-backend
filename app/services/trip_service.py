@@ -348,4 +348,17 @@ class TripService:
                     return True # Na dúvida, mantém ativo
         return False
                 
-        return active_trips
+    def update_trip_metadata(self, trip_id: str, metadata: Dict[str, Any]) -> bool:
+        """Atualiza metadados arbitrários de uma viagem (ex: drive_folder_id)."""
+        updated = False
+        for trip in self.trips:
+            if trip["id"] == trip_id:
+                for k, v in metadata.items():
+                    trip[k] = v
+                updated = True
+                break
+        
+        if updated:
+            self._save_trips()
+            logger.info(f"📝 Metadados da trip {trip_id} atualizados: {list(metadata.keys())}")
+        return updated

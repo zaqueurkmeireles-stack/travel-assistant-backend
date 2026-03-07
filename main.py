@@ -17,6 +17,11 @@ from app.api import routes, shield
 from app.services.idempotency_service import get_idempotency
 from app.services.diagnostic_service import DiagnosticService
 
+# Setup Logging unconditionally
+if not os.path.exists("./logs"):
+    os.makedirs("./logs")
+logger.add("logs/app.log", rotation="1 day", retention="7 days")
+
 # Lazy instances
 _agent = None
 _n8n_service = None

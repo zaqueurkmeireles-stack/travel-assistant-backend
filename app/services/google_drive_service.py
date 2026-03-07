@@ -94,13 +94,16 @@ class GoogleDriveService:
             logger.error(f"Erro no upload para o Drive: {e}")
         return None
 
-    def get_trip_media_folder(self, trip_id: str, trip_name: str) -> Optional[str]:
-        """Garante a estrutura: Seven Assistant -> Trip_[trip_id] (trip_name)"""
-        # 1. Pasta Raiz (Seven Assistant Media)
+    def get_trip_media_folder(self, trip_id: str, trip_name: str, override_folder_id: Optional[str] = None) -> Optional[str]:
+        """Garante a estrutura: Seven Assistant -> Trip_[trip_id] (trip_name) ou usa o override se fornecido."""
+        if override_folder_id:
+            logger.info(f"📂 Usando pasta Drive personalizada para a trip {trip_id}: {override_folder_id}")
+            return override_folder_id
+
+        # 1. Pasta Raiz (Seven Assistant Media) - Fallback
         root_id = self.get_or_create_folder("Seven Assistant Media")
         
         # 2. Pasta da Viagem (Unificada para todos os membros)
-        # Usamos o trip_id no nome para unicidade, mas o trip_name para ficar legível
         folder_display_name = f"{trip_name} ({trip_id[-8:]})"
         trip_folder_id = self.get_or_create_folder(folder_display_name, parent_id=root_id)
         

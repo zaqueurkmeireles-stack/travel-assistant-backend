@@ -3,6 +3,9 @@ Tools - Ferramentas disponíveis para o agente LangGraph
 """
 
 from langchain.tools import tool
+import re
+import json
+import os
 from app.services.openai_service import OpenAIService
 from app.services.maps_service import GoogleMapsService
 from app.services.weather_service import WeatherService
@@ -362,6 +365,84 @@ def approve_pending_access_request(config: RunnableConfig) -> str:
         return f"✅ Contato {guest_id} autorizado com sucesso para a viagem '{success_trip_id}'!"
     
     return "❌ Falha técnica ao autorizar o contato."
+
+@tool
+def configure_trip_drive_folder(drive_url: str, config: RunnableConfig) -> str:
+    """
+    Configura ou vincula uma pasta específica do Google Drive à viagem atual.
+    Chame quando o usuário disser que quer configurar o drive, mandar um link de pasta ou 
+    perguntar como salvar as mídias em uma pasta privada.
+    
+    Args:
+        drive_url: O link completo da pasta do Google Drive fornecido pelo usuário.
+    """
+    thread_id = config.get("configurable", {}).get("thread_id", "default")
+    from app.services.user_service import UserService
+    from app.services.trip_service import TripService
+    from app.services.google_drive_service import GoogleDriveService
+    from app.config import settings
+    
+    user_svc = UserService()
+    trip_svc = TripService()
+    drive_svc = GoogleDriveService()
+    
+    active_trip_id = user_svc.get_active_trip(thread_id)
+    if not active_trip_id:
+        return "❌ Você não tem nenhuma viagem ativa vinculada no momento. Envie uma passagem primeiro para que possamos criar sua viagem e vincular uma pasta."
+
+    # Pegar e-mail do Service Account para instrução
+    try:
+        creds_info = json.loads(settings.GOOGLE_DRIVE_CREDENTIALS_JSON)
+        service_email = creds_info.get("client_email", "e-mail do sistema")
+    except:
+        service_email = "e-mail do sistema de blindagem"
+
+    if not drive_url or "drive.google.com" not in drive_url:
+        return (
+            "📂 **Configuração de Pasta Privada**\n\n"
+            "Para que eu salve suas fotos e vídeos em uma pasta só sua, siga estes passos:\n\n"
+            "1️⃣ **Crie uma pasta** no seu Google Drive (ex: 'Minha Viagem').\n"
+            f"2️⃣ **Compartilhe** ela com este e-mail como EDITOR:\n👉 `{service_email}`\n"
+            "3️⃣ **Cole o link** da pasta aqui nesta conversa.\n\n"
+            "Estou aguardando o seu link! 🦾"
+        )
+
+    # Extrair ID
+    match = re.search(r"(?:folders/|id=)([\w-]+)", drive_url)
+    if not match:
+        return "❌ Não consegui identificar um ID de pasta válido nesse link. Certifique-se de que é um link de PASTA do Google Drive."
+
+    folder_id = match.group(1)
+    
+    # Teste de acesso
+    try:
+        if not drive_svc.service:
+            return "⚠️ O serviço de Google Drive não está habilitado no servidor. Fale com o administrador."
+        
+        # Tenta listar o conteúdo para ver se tem acesso
+        drive_svc.service.files().get(fileId=folder_id, fields="id, name").execute()
+    except Exception as e:
+        logger.error(f"Erro de acesso ao Drive: {e}")
+        return (
+            "❌ **Erro de Acesso!**\n\n"
+            "Não consegui acessar essa pasta. Verifique se você:\n"
+            f"1. Compartilhou a pasta com `{service_email}`\n"
+            "2. Deu permissão de **EDITOR**.\n\n"
+            "Tente compartilhar novamente e me envie o link."
+        )
+
+    # Salvar na Trip
+    success = trip_svc.update_trip_metadata(active_trip_id, {"drive_folder_id": folder_id})
+    
+    if success:
+        return (
+            "✅ **Sucesso! Pasta Vinculada.**\n\n"
+            f"A pasta do seu Google Drive foi conectada à viagem `{active_trip_id}`.\n"
+            "A partir de agora, todas as fotos, vídeos e documentos que você me enviar serão guardados automaticamente lá. 🛡️📂"
+        )
+    
+    return "❌ Erro interno ao salvar a configuração da pasta."
+
 
 @tool
 def discard_pending_action(config: RunnableConfig) -> str:
@@ -880,6 +961,7 @@ ALL_TOOLS = [
     confirm_irrelevancy_inclusion,
     approve_pending_access_request,
     discard_pending_action,
+    configure_trip_drive_folder,
     link_with_partner_trip,
     invite_family_member,
     list_trip_participants,

@@ -45,9 +45,9 @@ class GeminiService:
             return response.content
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
-                logger.error(f"🛑 COTÁ EXCEDIDA NO GEMINI (429): {e}")
+                logger.warning("🛡️ Gemini: Cota atingida. Seguindo sem segunda opinião.")
             else:
-                logger.error(f"Erro ao consultar Gemini: {e}")
+                logger.error(f"❌ Erro Gemini: {e}")
             return None
 
     def verify_navigation_and_arrival(self, assistant_response: str, user_query: str) -> Optional[str]:
@@ -77,7 +77,7 @@ class GeminiService:
             return response.content
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
-                logger.error(f"🛑 COTÁ EXCEDIDA NO GEMINI NAVEGAÇÃO (429): {e}")
+                logger.warning("🛡️ Gemini: Cota atingida na auditoria.")
             else:
-                logger.error(f"Erro ao auditar navegação com Gemini: {e}")
+                logger.error(f"❌ Erro Auditoria Gemini: {e}")
             return None

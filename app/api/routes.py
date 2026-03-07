@@ -102,6 +102,19 @@ async def health_check():
     """Endpoint for platforms like Easypanel to verify the app is alive."""
     return JSONResponse(content={"status": "ok", "message": "TravelCompanion AI is running"})
 
+@router.get("/debug/logs", tags=["System"])
+async def get_debug_logs(limit: int = 50):
+    """Retorna as últimas linhas do log para depuração remota"""
+    try:
+        log_path = "logs/app.log"
+        if not os.path.exists(log_path):
+            return {"error": "Arquivo de log não encontrado."}
+            
+        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+            return {"lines": lines[-limit:]}
+    except Exception as e:
+        return {"error": str(e)}
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(
     request: ChatRequest,
@@ -189,6 +202,7 @@ async def chat_endpoint(
 async def process_chat_message(request: ChatRequest, agent: TravelAgent, idempotency_key: str):
     """Lógica de processamento de chat executada em background"""
     from datetime import datetime
+    print(f"\n🚀 [PROCESS-START] {request.user_id} | Key: {idempotency_key}\n")
     idempotency = get_idempotency()
     correlation_id = idempotency.get_correlation_id(idempotency_key)
     
@@ -405,8 +419,25 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent, idempot
                     n8n.enviar_resposta_usuario(request.user_id, f"🚫 {reason}")
                     return
 
+            # Checkpoint 1: Início
+            logger.info(f"📍 [CHECKPOINT 1] Iniciando agent.chat para {request.user_id}")
+            
             # Chamada pesada da IA
             resposta_ia = agent.chat(user_input=request.message, thread_id=request.user_id)
+            
+            # Checkpoint 2: Resposta obtida
+            logger.info(f"📍 [CHECKPOINT 2] Resposta obtida (Tamanho: {len(resposta_ia) if resposta_ia else 0})")
+            if resposta_ia:
+                logger.info(f"✈️ [PRE-DELIVERY] Tentando enviar resposta para {request.user_id}...")
+                from app.services.n8n_service import N8nService
+                n8n = N8nService()
+                success = n8n.enviar_resposta_usuario(request.user_id, resposta_ia, bypass_firewall=True)
+                logger.info(f"🛰️ [POST-DELIVERY] Resultado do envio: {success} para {request.user_id}")
+            else:
+                logger.warning(f"⚠️ [DELIVERY] Resposta da IA veio vazia para {request.user_id}")
+            
+            # Checkpoint 3: Fim do fluxo
+            logger.info(f"📍 [CHECKPOINT 3] Fluxo concluído para {request.user_id}")
             
             idempotency.update_status(idempotency_key, "RESPONDED", response=resposta_ia)
             
@@ -498,6 +529,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
 
     background_tasks.add_task(process_media_webhook, request, idempotency_key)
     return JSONResponse(status_code=202, content={"success": True, "message": "Recebido para processamento."})
+
 
 async def process_media_webhook(request: MediaRequest, idempotency_key: str):
     """Lógica de processamento de mídia em background"""

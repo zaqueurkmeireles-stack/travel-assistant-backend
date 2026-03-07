@@ -92,6 +92,7 @@ def call_model(state: AgentState, config: dict = None):
         "- **Contexto de Grupo:** Se detectar que o usuário está planejando com mais pessoas, pergunte: 'Você está planejando essa viagem sozinho ou gostaria de compartilhar os documentos com alguém (ex: esposa/marido)?'.\n"
         "- Se o usuário fornecer o número do parceiro, use 'link_with_partner_trip' para unificar o RAG.\n"
         "- **Visibilidade de Grupo:** Se o usuário perguntar quem está na viagem ou se o parceiro já foi vinculado, use 'list_trip_participants' para mostrar todos os membros autorizados.\n"
+        "- **Configuração de Google Drive:** Se o usuário enviar um link de pasta do Google Drive ou pedir para salvar documentos/mídias em uma pasta privada, use a tool `configure_trip_drive_folder`. Se ele não enviar o link, a tool fornecerá as instruções necessárias. Garanta que o usuário entenda que isso isola os arquivos dele dos demais.\n"
         "- Seja preciso e econômico com palavras, mas rico em utilidade.\n"
         "### MODOS ESPECIAIS (PARQUES E EVENTOS):\n"
         "- **Modo Parque (Disney/Universal/Europa Park):** Monitore filas real-time via 'get_park_live_status' e sugira rotas inteligentes.\n"
@@ -227,14 +228,16 @@ def expert_consensus_review(state: AgentState):
                     final_response = refined_res
                     logger.info("✅ Veredito final do Claude obtido.")
             except Exception as e:
-                logger.error(f"Erro no Claude: {e}")
-                if "balance" in str(e).lower() or "quota" in str(e).lower():
+                logger.error(f"❌ Erro no Claude: {e}")
+                # Se for erro de créditos, saldo ou cota, avisamos o admin e seguimos o fluxo original
+                error_str = str(e).lower()
+                if "balance" in error_str or "quota" in error_str or "credit" in error_str or "400" in error_str:
                     n8n = N8nService()
                     admin_num = getattr(settings, "ADMIN_WHATSAPP_NUMBER", "")
                     if admin_num:
                         n8n.enviar_resposta_usuario(
                             admin_num, 
-                            "🚨 *ALERTA ANTHROPIC CLAUDE*\nSeu saldo de créditos acabou. O refinamento de respostas de elite está temporariamente desativado.",
+                            "🚨 *ALERTA ANTHROPIC CLAUDE*\nSeu saldo de créditos acabou ou a conta está desativada. O refinamento de respostas de elite está temporariamente desativado. O sistema continuará operando com a resposta padrão.",
                             bypass_firewall=True
                         )
         elif gemini_opinion:

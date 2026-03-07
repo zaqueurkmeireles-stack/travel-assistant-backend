@@ -59,3 +59,36 @@ O sistema não apenas responde perguntas, mas **antecipa necessidades**. Ele atu
 - **Modularidade:** Crie os nós do LangGraph de forma isolada.
 - **Economia de Dados:** Sempre ofereça opções "low-data" (texto simples) antes de enviar mapas online.
 - **Tratamento de Erros:** Se uma API externa falhar, o robô deve assumir graciosamente e avisar o usuário.
+## 7. Contrato de Arquitetura e Padrões de Código (Para Agentes de IA)
+Esta seção define as regras estritas de engenharia do repositório. Qualquer IA atuando neste projeto (Jules, Antigravity, etc.) **DEVE** seguir estas diretrizes ao implementar novas funcionalidades.
+
+### 7.1. Estrutura de Diretórios e Responsabilidades
+A organização do código obedece a uma separação estrita de conceitos. Novas implementações devem respeitar os seguintes domínios:
+
+- `app/api/`: Contém apenas os roteadores (`routes.py`) e o Error Boundary global (`shield.py`). Função: receber requisições, retornar HTTP 200 rápido e despachar para background. Nenhuma regra de negócio deve ficar aqui.
+- `app/services/`: O coração do sistema. Onde a lógica de negócio, regras de RAG, controle de banco de dados e integrações externas (APIs) vivem.
+- `app/agents/`: Lógica do LangGraph.
+  - `tools.py`: Toda capacidade interativa do robô (ações) deve ser mapeada aqui como uma `@tool`.
+  - `orchestrator.py`: O cérebro do LangGraph que roteia qual agente/tool chamar.
+- `app/models/`: Schemas de dados (Pydantic) e modelos de banco de dados. Qualquer tipagem estrita ou validação de payload deve nascer aqui.
+- `app/parsers/`: Scripts exclusivos para extrair e normalizar dados de PDFs, imagens e comprovantes estruturados.
+- `app/prompts/`: Todos os templates de texto, system prompts e personas das IAs devem ser isolados aqui (não hardcoded nos serviços).
+- `app/utils/`: Funções utilitárias genéricas (formatação de data, limpeza de strings, etc.) que são usadas por múltiplos serviços.
+- `data/`: Armazenamento de estado local (como `trips.json`, `vector_data.json` e o banco do `idempotency.db`). O código deve assumir que esta pasta exige travas de concorrência (Locks) para escrita.
+- `tests/`: Onde moram todos os scripts de validação (`test_*.py`). Toda nova feature crítica deve ser acompanhada de um teste aqui usando pytest.
+- `Raiz (Root)`: Arquivos de configuração (`main.py`, `.env`, `docker-compose.yml`) e scripts de deploy/blindagem.
+
+### 7.2. Regras Imutáveis de Engenharia (NÃO QUEBRE)
+1. **Idempotência (Obrigatório):** Todo evento de entrada da Evolution API passa pelo `IdempotencyService` (SQLite). Nunca modifique isso. O sistema não pode processar o mesmo webhook duas vezes.
+2. **Tratamento de Erros (Shield):** É estritamente proibido usar `except Exception as e:` que devolva erros genéricos ao usuário ("Erro interno"). Use o Error Boundary Global (`shield.py`) e garanta fallbacks graciosos. Suprima erros de cota (429/400) das IAs nos logs.
+3. **ACL e Identidade:** Todo telefone DEVE ser normalizado para o padrão E.164 pelo `UserService` antes de qualquer verificação de permissão de `trip_id`.
+4. **Deduplicação Estrita:** Documentos nunca são substituídos baseados apenas em similaridade semântica. A deduplicação exige chaves exatas baseadas em `doc_type` (ex: PNR igual para voos).
+5. **Isolamento de Dados:** Cada viagem possui seu próprio `trip_id` e seu próprio `drive_folder_id`. Os dados não se misturam.
+
+## 8. Protocolo de Implementação de Novas Features (Instrução LLM)
+Quando o desenvolvedor pedir para você (IA) implementar uma nova feature descrita nas seções acima (ex: "Integração com Uber"), você DEVE executar o seguinte fluxo de trabalho em lote:
+1. **Service:** Crie o arquivo `[nome]_service.py` isolado em `app/services/`.
+2. **Tool:** Registre a nova capacidade em `app/agents/tools.py` encapsulando a chamada do service.
+3. **Orchestrator:** Atualize o prompt do sistema ou os nós do LangGraph em `app/agents/orchestrator.py` para que a IA saiba quando usar a nova tool.
+4. **Env:** Adicione as novas variáveis de ambiente necessárias no `.env.example`.
+5. **Documentação Viva (Auto-Atualização):** Se a implementação da nova feature exigir a criação de uma nova pasta estrutural na raiz do projeto (fora do escopo já documentado), você (IA) DEVE obrigatoriamente abrir este arquivo `CONTEXTO_DO_PROJETO.md`, ir até a Seção 7.1 e adicionar a explicação e a responsabilidade dessa nova pasta para manter o mapa arquitetônico sempre atualizado.

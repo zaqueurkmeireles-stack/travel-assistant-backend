@@ -89,12 +89,14 @@ class DocumentIngestor:
             if (is_media or is_doc) and not dry_run:
                 trip_folder_key = active_trip_id or f"User_{sender_number}"
                 trip_name = "Documentos e Midia"
+                custom_drive_id = None
                 if active_trip_id:
                     for t in self.trip_svc.trips:
                         if t["id"] == active_trip_id:
                             trip_name = t["destination"]
+                            custom_drive_id = t.get("drive_folder_id")
                             break
-                folder_id = self.drive_svc.get_trip_media_folder(trip_folder_key, trip_name)
+                folder_id = self.drive_svc.get_trip_media_folder(trip_folder_key, trip_name, override_folder_id=custom_drive_id)
                 if folder_id:
                     file_id = self.drive_svc.upload_file(file_content, filename, mimetype, folder_id)
                     drive_link = f"https://drive.google.com/file/d/{file_id}/view"

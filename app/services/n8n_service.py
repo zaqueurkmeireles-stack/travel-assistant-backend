@@ -10,10 +10,8 @@ class N8nService:
     """Service para enviar mensagens de volta para o usuário através do n8n"""
     
     def __init__(self):
-        # A URL do webhook do n8n que vai RECEBER as respostas da nossa IA
-        # Vamos configurar isso no arquivo .env depois
-        import os
-        self.webhook_url = os.getenv("N8N_WEBHOOK_URL_OUTPUT", "")
+        from app.config import settings
+        self.webhook_url = settings.N8N_WEBHOOK_URL_OUTPUT
         
         if not self.webhook_url:
             logger.warning("⚠️ URL do Webhook do n8n não configurada (modo simulação)")
@@ -42,20 +40,20 @@ class N8nService:
                 if uid == admin_number:
                     pass # Liberado
                 else:
-                    # 2. Se não for admin, tem que ser GUEST AUTORIZADO (com ou sem trip ativa para bypass parcial)
+                    # 2. Se não for o admin principal, tem que ser GUEST ou ADMIN no banco
                     user_data = user_svc.get_user(uid)
                     role = user_data.get("role") if user_data else "unauthorized"
                     
-                    if role != "guest":
+                    if role not in ["guest", "admin"]:
                         logger.warning(f"🛡️ [FIREWALL] Bloqueado: Tentativa de envio proativo para usuário não autorizado ({uid})")
                         return False
                     
-                    # 3. Se for proativo (sem bypass), tem que ter TRIP ATIVA
-                    # Usamos get_user_role que já tem a lógica de expiração
-                    expired_role = user_svc.get_user_role(uid)
-                    if expired_role == "unauthorized":
-                        logger.warning(f"🛡️ [FIREWALL] Bloqueado: Usuário '{uid}' é guest mas não tem viagem ativa no momento.")
-                        return False
+                    # 3. Se for proativo (sem bypass), tem que ter TRIP ATIVA (para guests)
+                    if role == "guest":
+                        expired_role = user_svc.get_user_role(uid)
+                        if expired_role == "unauthorized":
+                            logger.warning(f"🛡️ [FIREWALL] Bloqueado: Usuário '{uid}' é guest mas não tem viagem ativa no momento.")
+                            return False
             except Exception as e:
                 logger.error(f"⚠️ Erro ao validar firewall de saída para {numero_usuario}: {e}")
             # Na dúvida, se o firewall falhar (ex: erro de import), bloqueamos por segurança em modo proativo
@@ -79,9 +77,11 @@ class N8nService:
             
             if response.status_code == 200:
                 logger.info(f"✅ Sucesso no n8n para {numero_usuario}")
+                print(f"✅ [N8N-SUCCESS] Mensagem entregue para {numero_usuario}")
                 return True
             else:
                 logger.error(f"❌ Erro n8n. Status: {response.status_code} | Resposta: {response.text[:200]}")
+                print(f"❌ [N8N-ERROR] Status: {response.status_code} | Resposta: {response.text[:50]}")
                 return False
                 
         except Exception as e:

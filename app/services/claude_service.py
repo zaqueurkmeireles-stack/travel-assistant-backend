@@ -50,8 +50,8 @@ class ClaudeService:
             response = self.llm.invoke(prompt)
             return response.content
         except Exception as e:
-            if "credit balance" in str(e).lower() or "quota" in str(e).lower():
-                logger.error(f"🛑 SALDO INSUFICIENTE NO CLAUDE (Anthropic): {e}")
+            if "429" in str(e) or "quota" in str(e).lower() or "credit balance" in str(e).lower():
+                logger.warning("🛡️ Claude: Sem saldo ou cota atingida. Seguindo sem refinamento.")
             else:
-                logger.error(f"Erro ao consultar Claude: {e}")
+                logger.error(f"❌ Erro Claude: {e}")
             return None

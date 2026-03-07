@@ -22,12 +22,18 @@ class DiagnosticService:
         }
         
         # Determina o status geral
-        all_checks = []
-        for cat in results.values():
-            if isinstance(cat, dict):
-                all_checks.extend([v.get("status") == "OK" for v in cat.values() if isinstance(v, dict) and "status" in v])
+        # Ignora GOOGLE_DRIVE_FOLDER_ID faltando para o STATUS GERAL (não é crítico)
+        critical_checks = []
+        for cat_name, cat_data in results.items():
+            if not isinstance(cat_data, dict): continue
+            for key, val in cat_data.items():
+                if isinstance(val, dict) and "status" in val:
+                    # Se for APENAS o Drive faltando, não marcamos como DEGRADED no geral
+                    if key == "GOOGLE_DRIVE_FOLDER_ID" and val.get("status") == "MISSING":
+                        continue
+                    critical_checks.append(val.get("status") == "OK")
         
-        results["overall_status"] = "HEALTHY" if all(all_checks) else "DEGRADED"
+        results["overall_status"] = "HEALTHY" if all(critical_checks) else "DEGRADED"
         return results
 
     def get_alert_report(self, diag_results):
@@ -42,11 +48,12 @@ class DiagnosticService:
             "EVOLUTION_API_URL": "URL da Evolution API não configurada. O bot não conseguirá enviar mensagens.",
             "EVOLUTION_API_KEY": "Chave da Evolution API faltando ou inválida.",
             "GEMINI_API_KEY": "Chave do Google Gemini não encontrada (essencial para ler PDFs). Gere em: aistudio.google.com",
-            "GOOGLE_DRIVE_FOLDER_ID": "ID da pasta do Google Drive não configurado. Mídias não serão salvas na nuvem.",
+            "GOOGLE_DRIVE_FOLDER_ID": "ID da pasta raiz não configurado. O sistema usará folders por viagem se configurados.",
             "idempotency": "Banco de dados de segurança (idempotency.db) não encontrado ou corrompido.",
             "trips": "O arquivo de viagens (trips.json) está faltando ou corrompido!",
             "openai": "Falha na conexão com OpenAI. Verifique se sua chave tem créditos.",
-            "evolution_api": "Não consegui falar com a Evolution API. Verifique se o serviço está rodando."
+            "evolution_api": "Não consegui falar com a Evolution API. Verifique se o serviço está rodando.",
+            "drive_isolation": "Nenhuma viagem possui pasta de Drive personalizada vinculada ainda."
         }
 
         # Analisar falhas de variáveis
@@ -77,8 +84,19 @@ class DiagnosticService:
         return report
 
     async def notify_admin_if_degraded(self, diag_results):
-        """Envia o alerta para o WhatsApp do Admin se houver problemas."""
+        """Envia o alerta para o WhatsApp do Admin se houver problemas CRÍTICOS."""
         if diag_results["overall_status"] != "HEALTHY":
+            # Filtro extra: Só notifica se houver erro além do Drive
+            env = diag_results.get("environment", {})
+            critical_missing = [k for k, v in env.items() if v.get("status") != "OK" and k != "GOOGLE_DRIVE_FOLDER_ID"]
+            
+            deps = diag_results.get("dependencies", {})
+            failed_deps = [k for k, v in deps.items() if v.get("status") != "OK"]
+            
+            if not critical_missing and not failed_deps:
+                logger.info("ℹ️ Sentinela: Apenas avisos não críticos detectados. Notificação de WhatsApp suprimida.")
+                return
+
             report = self.get_alert_report(diag_results)
             try:
                 from app.services.n8n_service import N8nService
@@ -174,6 +192,25 @@ class DiagnosticService:
             sanity["gemini_api"] = {"status": "OK" if settings.GEMINI_API_KEY else "MISSING_KEY"}
         except Exception as e:
             sanity["gemini_api"] = {"status": "ERROR", "message": str(e)}
+
+        # 3. Phone Normalization (Sanity check)
+        try:
+            from app.services.user_service import UserService
+            svc = UserService()
+            # Testa se 9 dígitos vira 8 (sem DDI) ou se normaliza com DDI
+            res = svc.normalize_phone("5541988368783")
+            sanity["phone_normalization"] = {"status": "OK" if res == "554188368783" else "ERROR"}
+        except:
+            sanity["phone_normalization"] = {"status": "ERROR"}
+
+        # 4. Drive Isolation (Check if any trip has custom folder)
+        try:
+            from app.services.trip_service import TripService
+            trip_svc = TripService()
+            has_custom = any(t.get("drive_folder_id") for t in trip_svc.trips)
+            sanity["drive_isolation"] = {"status": "OK" if has_custom else "WARNING"}
+        except:
+            sanity["drive_isolation"] = {"status": "ERROR"}
 
         return sanity
 

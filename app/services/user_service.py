@@ -71,13 +71,23 @@ class UserService:
         if not p:
             return ""
 
-        # Lógica para Brasil: se começa com 55 e tem 13 dígitos, remove o 9 (o 5º dígito)
-        if p.startswith("55") and len(p) == 13:
-            return p[:4] + p[5:]
-        
-        # Se não tem DDI mas parece ser BR (8 ou 9 dígitos sem DDD, ou 10/11 com DDD)
-        # Assumimos que o n8n/gateway já entrega com DDI 55 na maioria das vezes.
-        
+        # Lógica para Brasil:
+        # Se tem DDI 55
+        if p.startswith("55"):
+            # 55 + 11 dígitos (com 9) -> 13 total
+            if len(p) == 13:
+                return p[:4] + p[5:]
+            return p
+            
+        # Se não tem DDI 55, mas tem 11 dígitos (DDD + 9 + 8 dígitos)
+        if len(p) == 11 and p[2] == "9":
+            # Opcional: Adicionar 55 e remover o 9 (para manter padrão 55 + 10)
+            return "55" + p[:2] + p[3:]
+            
+        # Se tem 10 dígitos (DDD + 8 dígitos)
+        if len(p) == 10:
+            return "55" + p
+
         return p
 
     def _ensure_admin(self):
