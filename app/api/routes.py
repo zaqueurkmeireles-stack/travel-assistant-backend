@@ -279,8 +279,9 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
                 admin_user = user_service.get_user(request.user_id)
                 pending_requests = admin_user.get("pending_requests", {}) if admin_user else {}
                 if not pending_requests:
-                    unauthorized_users = [uid for uid, data in user_service.users.items() if data.get("role") == "unauthorized"]
-                    if unauthorized_users: guest_id = unauthorized_users[-1]
+                    n8n_tmp = N8nService()
+                    n8n_tmp.enviar_resposta_usuario(request.user_id, "❌ Não encontrei solicitações de acesso recentes na memória. Para aprovar alguém, use o formato: *sim [número_da_pessoa]*.", bypass_firewall=True)
+                    return
                 else:
                     guest_id = sorted(pending_requests.items(), key=lambda x: x[1]['timestamp'] if isinstance(x[1], dict) else x[1], reverse=True)[0][0]
             else:
@@ -371,6 +372,9 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent):
             else:
                 # Se não for autorizado, avisar o admin
                 if request.user_id != settings.ADMIN_WHATSAPP_NUMBER:
+                    # NOVO: Registrar a solicitação no banco para que o 'sim' puro funcione
+                    user_service.register_access_request(request.user_id, request.push_name)
+                    
                     n8n = N8nService()
                     admin_msg = (
                         f"🚨 *Nova Solicitação de Acesso*\n\n"
