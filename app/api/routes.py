@@ -7,7 +7,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends, B
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from loguru import logger
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 # Imports dos nossos motores
 from app.parsers.parser_factory import ParserFactory
