@@ -121,3 +121,6 @@ class IdempotencyService:
                     logger.info(f"🧹 Cleanup Idempotency: {count} registros removidos.")
         except Exception as e:
             logger.error(f"❌ Erro no cleanup de idempotência: {e}")
+
+def get_idempotency():
+    return IdempotencyService()
