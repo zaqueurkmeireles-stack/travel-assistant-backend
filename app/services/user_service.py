@@ -44,8 +44,11 @@ class UserService:
 
     def _save_users(self):
         try:
-            with open(self.db_path, 'w', encoding='utf-8') as f:
+            import os
+            tmp_path = f"{self.file_path}.tmp"
+            with open(tmp_path, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self.file_path)
         except Exception as e:
             logger.error(f"Erro ao salvar usuários: {e}")
 

@@ -134,6 +134,7 @@ async def chat_endpoint(
     idempotency = get_idempotency()
     # Gera chave determinística baseada na mensagem se o ID não existir
     # Mas a Evolution sempre deve mandar message_id
+    request.user_id = user_service.normalize_phone(request.user_id)
     idempotency_key = idempotency.generate_key(request.user_id, request.message_id, request.message)
     
     existing_status = idempotency.check_and_register(
@@ -411,12 +412,12 @@ async def process_chat_message(request: ChatRequest, agent: TravelAgent, idempot
                     )
                     n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
                     # Resposta amigável para o usuário
-                    n8n.enviar_resposta_usuario(request.user_id, "👋 Olá! Eu ainda não tenho autorização para te ajudar. Já avisei o administrador e assim que ele liberar seu acesso, eu te aviso aqui! ✈️")
+                    # [P0 SILÊNCIO] n8n.enviar_resposta_usuario(request.user_id, "👋 Olá! Eu ainda não tenho autorização para te ajudar. Já avisei o administrador e assim que ele liberar seu acesso, eu te aviso aqui! ✈️")
                     return
                 else:
                     # Outros motivos de DENY (expirado, trip errada)
                     n8n = N8nService()
-                    n8n.enviar_resposta_usuario(request.user_id, f"🚫 {reason}")
+                    # [P0 SILÊNCIO] n8n.enviar_resposta_usuario(request.user_id, f"🚫 {reason}")
                     return
 
             # Checkpoint 1: Início
@@ -512,6 +513,7 @@ async def media_webhook(request: MediaRequest, background_tasks: BackgroundTasks
     
     # --- [IDEMPOTÊNCIA] ---
     idempotency = get_idempotency()
+    request.user_id = user_service.normalize_phone(request.user_id)
     idempotency_key = idempotency.generate_key(request.user_id, request.message_id, media_hash=request.filename)
     
     existing_status = idempotency.check_and_register(
@@ -590,12 +592,12 @@ async def process_media_webhook(request: MediaRequest, idempotency_key: str):
                         f"Envie *sim {request.user_id}* para autorizar."
                     )
                     n8n.enviar_resposta_usuario(settings.ADMIN_WHATSAPP_NUMBER, admin_msg, bypass_firewall=True)
-                    n8n.enviar_resposta_usuario(request.user_id, "⚠️ Recebi seu documento, mas ainda não tenho autorização para salvá-lo. Já pedi liberação ao administrador! ✈️")
+                    # [P0 SILÊNCIO] n8n.enviar_resposta_usuario(request.user_id, "⚠️ Recebi seu documento, mas ainda não tenho autorização para salvá-lo. Já pedi liberação ao administrador! ✈️")
                     idempotency.update_status(idempotency_key, "RESPONDED", response="Acesso pendente admin")
                     return
                 else:
                     n8n = N8nService()
-                    n8n.enviar_resposta_usuario(request.user_id, f"🚫 {reason}")
+                    # [P0 SILÊNCIO] n8n.enviar_resposta_usuario(request.user_id, f"🚫 {reason}")
                     idempotency.update_status(idempotency_key, "RESPONDED", response=f"Acesso negado: {reason}")
                     return
 
