@@ -153,6 +153,9 @@ class UserService:
         return role
 
     def authorize(self, sender_id: str, trip_id: Optional[str] = None, scope: str = "ask") -> tuple[bool, str]:
+        user = self.users.get(sender_id, {})
+        if user.get('role') == 'blocked':
+            return False, 'Usuário bloqueado pelo administrador.'
         """
         Ponto único de decisão de permissões (ACL).
         Retorna (ALLOWED, MOTIVO).
@@ -222,6 +225,9 @@ class UserService:
         return True
 
     def authorize_guest(self, admin_id: str, guest_id: str, trip_id: str) -> Optional[str]:
+        user = self.users.get(sender_id, {})
+        if user.get('role') == 'blocked':
+            return False, 'Usuário bloqueado pelo administrador.'
         """Um admin autoriza um convidado para uma viagem. Retorna o trip_id se sucesso."""
         if self.get_user_role(admin_id) != "admin":
             logger.warning(f"Usuário {admin_id} não é admin e tentou autorizar {guest_id}")

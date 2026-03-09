@@ -159,8 +159,6 @@ async def chat_endpoint(
         user_service = UserService()
         
         # 🛡️ NORMALIZAÇÃO IMEDIATA
-        user_id_raw = request.user_id
-        request.user_id = user_service.normalize_phone(request.user_id)
         
         logger.info(f"📡 [INCOMING] Recebido: {request.user_id} (Original: {user_id_raw})")
         
@@ -601,7 +599,7 @@ async def process_media_webhook(request: MediaRequest, idempotency_key: str):
                     idempotency.update_status(idempotency_key, "RESPONDED", response=f"Acesso negado: {reason}")
                     return
 
-            normalized_uid = user_service.normalize_phone(request.user_id)
+            normalized_uid = request.user_id
             ingestor = DocumentIngestor()
             data_payload = {
                 "key": {"remoteJid": f"{normalized_uid}@s.whatsapp.net", "id": request.message_id},
