@@ -1,4 +1,4 @@
-﻿"""
+"""
 Trip Service - Gerencia o banco de dados de viagens para o scheduler.
 """
 
@@ -195,7 +195,7 @@ class TripService:
         
         for trip in self.trips:
             try:
-                start_dt = datetime.strptime(trip.get("start_date", "1970-01-01"), "%Y-%m-%d").date()
+                start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 today_date = today.date()
                 delta_days = (start_dt - today_date).days
                 
@@ -278,7 +278,8 @@ class TripService:
             return None
         try:
             from datetime import timedelta
-            target_date = datetime.strptime(start_date or "1970-01-01", "%Y-%m-%d").date()
+            if not start_date:                 return None
+            target_date = datetime.strptime(start_date, "%Y-%m-%d").date()
         except Exception:
             return None
 
@@ -288,7 +289,7 @@ class TripService:
                 continue
             try:
                 trip_dest = trip.get("destination", "").lower().strip()
-                trip_date = datetime.strptime(trip.get("start_date", "1970-01-01"), "%Y-%m-%d").date()
+                trip_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 date_diff = abs((target_date - trip_date).days)
                 # Match se destino contém pelo menos 4 chars em comum e data com diferença <= 3 dias
                 dest_match = dest_lower[:4] in trip_dest or trip_dest[:4] in dest_lower
@@ -308,7 +309,7 @@ class TripService:
         
         for trip in self.trips:
             try:
-                start_dt = datetime.strptime(trip.get("start_date", "1970-01-01"), "%Y-%m-%d").date()
+                start_dt = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 end_date_str = trip.get("end_date")
                 
                 if end_date_str:
