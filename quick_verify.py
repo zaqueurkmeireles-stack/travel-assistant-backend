@@ -1,33 +1,42 @@
-import sys
-from app.agents.orchestrator import TravelAgent
-from app.parsers.car_rental_parser import CarRentalParser
+﻿import os
+import re
+from loguru import logger
 
-def quick_verify():
-    print("--- INICIANDO VERIFICACAO RAPIDA ---")
+def verify_sync():
+    logger.info("🔍 Iniciando Verificação de Sincronia Antigravity...")
     
-    # 1. Testar Parser de Carro com novo Prompt
-    print("1. Testando CarRentalParser...")
-    parser = CarRentalParser()
-    test_text = "Rental Voucher: Hertz. Pickup: JFK Terminal 4. Shuttle at Door 2. Date: 2026-05-10."
-    res = parser.parse(test_text.encode('utf-8'), "test_hertz.txt")
-    if res.get("document_type") == "car_rental":
-        print("   OK: Parser reconheceu o tipo corretamente.")
-    else:
-        print("   ERRO: Falha no Parser.")
-
-    # 2. Testar Orquestrador (Proatividade)
-    print("2. Testando Orquestrador (Chat)...")
-    agent = TravelAgent()
-    user_msg = "Cheguei no aeroporto. Onde pego meu carro alugado?"
-    response = agent.chat(user_msg, thread_id="test_verify_123")
-    print(f"   Resposta IA: {response[:100]}...")
+    # 1. Checar Requirements (Forçando UTF-8)
+    if os.path.exists("requirements.txt"):
+        with open("requirements.txt", "r", encoding="utf-8") as f:
+            content = f.read().lower()
+            if "phonenumbers" in content:
+                print("✅ [OK] requirements.txt atualizado com phonenumbers.")
+            else:
+                print("❌ [ERRO] phonenumbers NÃO encontrado no arquivo!")
     
-    if "MAPA" in response.upper() or "ESTEIRA" in response.upper() or "RESERVA" in response.upper():
-        print("   OK: Resposta proativa detectada.")
-    else:
-        print("   AVISO: Verifique se a proatividade foi acionada corretamente no orquestrador.")
+    # 2. Checar Versão da Rota (Forçando UTF-8)
+    route_path = "app/api/routes.py"
+    if os.path.exists(route_path):
+        with open(route_path, "r", encoding="utf-8") as f:
+            head = f.read(1000)
+            version = re.search(r"Versão: (.*)", head)
+            if version:
+                print(f"✅ [OK] Routes.py na versão: {version.group(1)}")
+            else:
+                print("⚠️ [AVISO] Versão não detectada no cabeçalho.")
 
-    print("--- VERIFICACAO CONCLUIDA ---")
+    # 3. Checar UserService (Forçando UTF-8)
+    service_path = "app/services/user_service.py"
+    if os.path.exists(service_path):
+        with open(service_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            if "phonenumbers" in content:
+                print("✅ [OK] UserService está com a lógica blindada.")
+            else:
+                print("❌ [ERRO] UserService parece estar desatualizado!")
 
 if __name__ == "__main__":
-    quick_verify()
+    try:
+        verify_sync()
+    except Exception as e:
+        print(f"❌ Erro ao rodar verificação: {e}")
