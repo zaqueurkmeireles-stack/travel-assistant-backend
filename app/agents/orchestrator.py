@@ -364,3 +364,15 @@ class TravelAgent:
                 
         logger.info(f"🤖 Agente: {response[:100]}...")
         return response
+    async def run_event(self, event: dict):
+        from app.services.evolution_service import EvolutionService
+        user_id = event.get("user_id")
+        payload = event.get("payload", {})
+        message = payload.get("message", {})
+        
+        text = message.get("conversation") or message.get("extendedTextMessage", {}).get("text")
+        if text:
+            logger.info(f"🤖 Maestro processando texto para {user_id}")
+            response = await asyncio.to_thread(self.chat, user_input=text, thread_id=user_id)
+            if response:
+                await EvolutionService().send_text(user_id, response)
