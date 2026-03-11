@@ -1,7 +1,42 @@
-﻿node_modules/
-.venv/
+﻿# Secrets
 .env
+*.key
+*.pem
+
+# Python
 __pycache__/
 *.pyc
-.documents/
+.venv/
+venv/
+
+# Logs
+logs/
+*.log
+
+# Local runtime data / databases
+data/
+*.sqlite
+*.sqlite3
+*.db
+checkpoints.sqlite
+
+# Vector DB / Chroma
+chroma_db/
+**/chroma_db/
+**/chroma.sqlite3
+**/vector_data.json
+**/*.bin
+
+# Build/artifacts
+*.zip
+
+# Large consolidated dumps
+*_consolidado*.txt
+github_consolidado*.txt
+antigravity_consolidado*.txt
+consolidado/
+consolidado.zip
+
+# OS
 .DS_Store
+Thumbs.db
