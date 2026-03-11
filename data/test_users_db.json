@@ -1,0 +1,23 @@
+{
+  "551199999999": {
+    "role": "admin",
+    "authorized_trips": [
+      "trip_1"
+    ],
+    "active_trip_id": "trip_1",
+    "pending_substitutions": [
+      {
+        "filename": "passagem2.pdf",
+        "document_type": "passagem",
+        "traveler": "Maria",
+        "pending_at": "2026-03-07T15:14:41.039253"
+      },
+      {
+        "filename": "hotel.pdf",
+        "document_type": "hotel",
+        "traveler": "Joao",
+        "pending_at": "2026-03-07T15:14:41.040206"
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+2026-03-10 12:45:23.545 | INFO     | __main__:<module>:233 - 🚀 [LAUNCH] Iniciando Servidor na porta: 80
+2026-03-10 12:46:30.020 | INFO     | __main__:<module>:235 - 🚀 [LAUNCH] Iniciando Servidor na porta: 80
+2026-03-10 12:46:30.020 | INFO     | __main__:<module>:235 - 🚀 [LAUNCH] Iniciando Servidor na porta: 80
+2026-03-10 12:46:30.130 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.130 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.130 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.131 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.131 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.131 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.132 | INFO     | app.services.n8n_service:__init__:19 - ✅ N8n Service inicializado
+2026-03-10 12:46:30.132 | INFO     | app.services.n8n_service:__init__:19 - ✅ N8n Service inicializado
+2026-03-10 12:46:30.132 | INFO     | app.services.n8n_service:__init__:19 - ✅ N8n Service inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.weather_service:__init__:17 - ✅ Weather Service inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.weather_service:__init__:17 - ✅ Weather Service inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.weather_service:__init__:17 - ✅ Weather Service inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.search_service:__init__:17 - ✅ Search Service (Tavily) inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.search_service:__init__:17 - ✅ Search Service (Tavily) inicializado
+2026-03-10 12:46:30.133 | INFO     | app.services.search_service:__init__:17 - ✅ Search Service (Tavily) inicializado
+2026-03-10 12:46:30.135 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.135 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.135 | INFO     | app.services.trip_service:_load_trips:27 - 📅 9 viagens carregadas para monitoramento.
+2026-03-10 12:46:30.136 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.136 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.136 | INFO     | app.services.trip_service:__init__:20 - ✅ TripService inicializado (Base: ./data\trips.json)
+2026-03-10 12:46:30.513 | INFO     | app.services.openai_service:__init__:18 - ✅ OpenAI Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.openai_service:__init__:18 - ✅ OpenAI Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.openai_service:__init__:18 - ✅ OpenAI Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.connectivity_service:__init__:18 - ✅ Connectivity Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.connectivity_service:__init__:18 - ✅ Connectivity Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.connectivity_service:__init__:18 - ✅ Connectivity Service inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.scheduler_service:__init__:25 - ✅ SchedulerService inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.scheduler_service:__init__:25 - ✅ SchedulerService inicializado
+2026-03-10 12:46:30.513 | INFO     | app.services.scheduler_service:__init__:25 - ✅ SchedulerService inicializado
+2026-03-10 12:46:30.518 | INFO     | app.services.scheduler_service:start:112 - ⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)
+2026-03-10 12:46:30.518 | INFO     | app.services.scheduler_service:start:112 - ⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)
+2026-03-10 12:46:30.518 | INFO     | app.services.scheduler_service:start:112 - ⏰ Scheduler iniciado (Verificação de alertas, auditoria e limpeza de dados)
