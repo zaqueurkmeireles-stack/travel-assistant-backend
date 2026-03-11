@@ -6,7 +6,6 @@ import os, asyncio, threading, mimetypes
 from cachetools import TTLCache
 from app.agents.orchestrator import TravelAgent
 from app.services.user_service import UserService
-from app.services.idempotency_service import IdempotencyService
 from app.config import settings
 
 router = APIRouter()
