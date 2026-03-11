@@ -1,18 +1,27 @@
+﻿# Python e Cache
 __pycache__/
 *.py[cod]
-venv/
-.env
+.venv/
+.pytest_cache/
+.agent/
+.agents/
+
+# Dados e Runtime (O "Lixo" que deve ficar APENAS no seu PC)
 data/
 logs/
 *.log
-KEYS_REFERENCE.md
-/tmp/
-.agent/
-.agents/
-.gemini/
-api_calls.log
-memory_test.py
-test_*.py
-build_v*.py
-inspect_*.py
-check_*.py
+*.sqlite3
+*.db
+vector_data.json
+chroma_direct/
+checkpoints.sqlite
+
+# Arquivos de Consolidação e ZIPs
+consolidado/
+antigravity_consolidado.txt
+github_consolidado.txt
+antigravity_consolidado_filtrado.txt
+consolidado.zip
+
+# Segredos (Nunca envie para o GitHub)
+.env

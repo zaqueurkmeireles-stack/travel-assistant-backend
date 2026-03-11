@@ -1,0 +1,525 @@
+﻿{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "travel-assistant-v1",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook-in",
+            "name": "Webhook Entrada",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -1800,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "{\"status\": 200, \"received\": true}",
+                "options": {}
+            },
+            "id": "respond-ok",
+            "name": "Respond 200 OK",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                -1600,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $node[\"Webhook Entrada\"].json.body.data?.key?.fromMe === false }}",
+                            "operation": "equal",
+                            "value2": true
+                        }
+                    ],
+                    "string": [
+                        {
+                            "value1": "={{ $node[\"Webhook Entrada\"].json.body.instance || '' }}",
+                            "value2": "Seven_Assistant"
+                        },
+                        {
+                            "value1": "={{ $node[\"Webhook Entrada\"].json.body.data?.key?.id || '' }}",
+                            "operation": "isNotEmpty"
+                        }
+                    ]
+                }
+            },
+            "id": "security-gate",
+            "name": "Security Gate",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                -1600,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "get",
+                "key": "={{ $node[\"Webhook Entrada\"].json.body.data.key.id }}"
+            },
+            "id": "redis-get",
+            "name": "Redis: Check Duplicate",
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                -1350,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.value }}",
+                            "operation": "isEmpty"
+                        }
+                    ]
+                }
+            },
+            "id": "if-duplicate",
+            "name": "Is New Message?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                -1150,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "set",
+                "key": "={{ $node[\"Webhook Entrada\"].json.body.data.key.id }}",
+                "value": "processed",
+                "expire": true,
+                "ttl": 300
+            },
+            "id": "redis-set",
+            "name": "Redis: Save ID",
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                -900,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "api_token",
+                            "value": "antigravity_master_zaqueu_2026"
+                        },
+                        {
+                            "name": "user_id",
+                            "value": "={{ ($node[\"Webhook Entrada\"].json.body.data?.key?.remoteJid || '').split('@')[0] || 'unknown' }}"
+                        },
+                        {
+                            "name": "root_folder",
+                            "value": "1bVfyHxmKvGKKqM8MJVOpQtYoqNhKd2_1"
+                        },
+                        {
+                            "name": "url_backend",
+                            "value": "http://travel-assistant-backend:80/api"
+                        }
+                    ]
+                }
+            },
+            "id": "config-master",
+            "name": "⚙️ Config Master",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                -700,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{ $node[\"Webhook Entrada\"].json.body.data?.base64 ? 'media' : ($node[\"Webhook Entrada\"].json.body.data?.message?.locationMessage ? 'location' : 'text') }}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "media",
+                            "output": 0
+                        },
+                        {
+                            "value2": "location",
+                            "output": 1
+                        },
+                        {
+                            "value2": "text",
+                            "output": 2
+                        }
+                    ]
+                }
+            },
+            "id": "main-router",
+            "name": "Router: Mídia vs Loc vs Texto",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                -500,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "jsonToBinary",
+                "convertAllData": false,
+                "sourceKey": "={{ $json.body.data.base64 }}",
+                "destinationKey": "data",
+                "options": {
+                    "fileName": "={{ \"DOC_\" + $node[\"⚙️ Config Master\"].json.user_id + \"_\" + Date.now() + \".jpg\" }}"
+                }
+            },
+            "id": "convert-binary",
+            "name": "Conversão Binária",
+            "type": "n8n-nodes-base.moveBinaryData",
+            "typeVersion": 1,
+            "position": [
+                -250,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "search",
+                "query": "={{ \"name = 'Viagem_\" + $node[\"⚙️ Config Master\"].json.user_id + \"' and '\" + $node[\"⚙️ Config Master\"].json.root_folder + \"' in parents and trashed = false\" }}",
+                "options": {
+                    "includeEmptyResult": true
+                }
+            },
+            "id": "drive-search",
+            "name": "Buscar Pasta Usuário",
+            "type": "n8n-nodes-base.googleDrive",
+            "typeVersion": 2,
+            "position": [
+                -50,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.id || '' }}",
+                            "operation": "isNotEmpty"
+                        }
+                    ]
+                }
+            },
+            "id": "if-folder-exists",
+            "name": "Folder Exists?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                150,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "create",
+                "name": "={{ 'Viagem_' + $node[\"⚙️ Config Master\"].json.user_id }}",
+                "parents": [
+                    "={{ $node[\"⚙️ Config Master\"].json.root_folder }}"
+                ],
+                "options": {}
+            },
+            "id": "drive-create-folder",
+            "name": "Create Folder",
+            "type": "n8n-nodes-base.googleDrive",
+            "typeVersion": 2,
+            "position": [
+                350,
+                250
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "upload",
+                "binaryData": true,
+                "parents": [
+                    "={{ $json.id || $node[\"⚙️ Config Master\"].json.root_folder }}"
+                ]
+            },
+            "id": "drive-upload",
+            "name": "Upload Drive",
+            "type": "n8n-nodes-base.googleDrive",
+            "typeVersion": 2,
+            "position": [
+                600,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "={{ $node[\"⚙️ Config Master\"].json.url_backend + ($node[\"Webhook Entrada\"].json.body.data?.message?.locationMessage ? '/webhook/location' : '/chat') }}",
+                "jsonParameters": true,
+                "options": {},
+                "headerParametersJson": "={{ JSON.stringify({ \"X-API-Token\": $node[\"⚙️ Config Master\"].json.api_token, \"Content-Type\": \"application/json\" }) }}",
+                "bodyParametersJson": "={{ JSON.stringify({ \"user_id\": $node[\"⚙️ Config Master\"].json.user_id, \"message\": $node[\"Webhook Entrada\"].json.body.data?.base64 ? '[SISTEMA: Mídia salva no Drive]' : ($node[\"Webhook Entrada\"].json.body.data?.message?.conversation || $node[\"Webhook Entrada\"].json.body.data?.message?.extendedTextMessage?.text || ''), \"latitude\": $node[\"Webhook Entrada\"].json.body.data?.message?.locationMessage?.degreesLatitude || undefined, \"longitude\": $node[\"Webhook Entrada\"].json.body.data?.message?.locationMessage?.degreesLongitude || undefined }) }}"
+            },
+            "id": "api-chat",
+            "name": "Enviar p/ Backend (IA)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                850,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "ia-response",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook-out",
+            "name": "Webhook Resposta IA",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -1800,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "number": [
+                        {
+                            "value1": "={{ String($json.body?.telefone || '').replace(/\D/g, '').length }}",
+                            "operation": "largerEqual",
+                            "value2": 10
+                        }
+                    ]
+                }
+            },
+            "id": "if-has-phone",
+            "name": "Has Valid Phone?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                -1550,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "http://evolution-api:8080/message/sendText/Seven_Assistant",
+                "jsonParameters": true,
+                "options": {},
+                "headerParametersJson": "={{ JSON.stringify({ \"apikey\": \"429683C4C977415CAAFCCE10F7D57E11\", \"Content-Type\": \"application/json\" }) }}",
+                "bodyParametersJson": "={{ JSON.stringify({ \"number\": String($json.body?.telefone || '').replace(/\D/g, ''), \"text\": String($json.body?.mensagem || '') }) }}"
+            },
+            "id": "send-evolution",
+            "name": "Enviar WhatsApp",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                -1300,
+                800
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Entrada": {
+            "main": [
+                [
+                    {
+                        "node": "Respond 200 OK",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Security Gate",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Security Gate": {
+            "main": [
+                [
+                    {
+                        "node": "Redis: Check Duplicate",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Redis: Check Duplicate": {
+            "main": [
+                [
+                    {
+                        "node": "Is New Message?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is New Message?": {
+            "main": [
+                [
+                    {
+                        "node": "Redis: Save ID",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Redis: Save ID": {
+            "main": [
+                [
+                    {
+                        "node": "⚙️ Config Master",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "⚙️ Config Master": {
+            "main": [
+                [
+                    {
+                        "node": "Router: Mídia vs Loc vs Texto",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Router: Mídia vs Loc vs Texto": {
+            "main": [
+                [
+                    {
+                        "node": "Conversão Binária",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar p/ Backend (IA)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar p/ Backend (IA)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Conversão Binária": {
+            "main": [
+                [
+                    {
+                        "node": "Buscar Pasta Usuário",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Buscar Pasta Usuário": {
+            "main": [
+                [
+                    {
+                        "node": "Folder Exists?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Folder Exists?": {
+            "main": [
+                [
+                    {
+                        "node": "Upload Drive",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Create Folder",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create Folder": {
+            "main": [
+                [
+                    {
+                        "node": "Upload Drive",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Upload Drive": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar p/ Backend (IA)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Resposta IA": {
+            "main": [
+                [
+                    {
+                        "node": "Has Valid Phone?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Has Valid Phone?": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar WhatsApp",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
